@@ -45,20 +45,21 @@ jobs:
       # A release build needs a keystore configured in Cargo.toml, so this
       # produces the debug-signed APK, which installs on any device.
       - name: Build the APK
+        working-directory: app
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
-        run: cargo apk build --no-default-features
+        run: cargo apk build
 
       - name: Show what was built
-        run: ls -la target/debug/apk/
+        run: find . -name "*.apk" -exec ls -lh {} \;
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: budget-apk
-          path: target/debug/apk/*.apk
+          path: "**/target/*/apk/*.apk"
           if-no-files-found: error
 
-      - name: Type-check every screen
-        run: cargo check --lib
+      - name: Type-check the UI
+        run: cargo check -p budget-app --lib
