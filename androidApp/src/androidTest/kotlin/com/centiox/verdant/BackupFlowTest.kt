@@ -112,7 +112,8 @@ class BackupFlowTest {
         compose.waitUntil(15000) {
             compose.onAllNodesWithText("Restore your backup?").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Restore backup", useUnmergedTree = true).performClick()
+        compose.onNodeWithText("Restore backup")
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
         }
