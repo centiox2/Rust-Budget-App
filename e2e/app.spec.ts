@@ -5,12 +5,13 @@ test("onboarding, CRUD, budgets, analytics, persistence and backup", async ({
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Your money/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /Maintain Your/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Start Now" }).click();
   await page.getByLabel("Your name").fill("Alex");
   await page.getByRole("button", { name: "Let’s get started" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Hello, Alex." }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Alex" })).toBeVisible();
   await page
     .getByRole("button", { name: "Add transaction", exact: true })
     .first()
@@ -77,6 +78,8 @@ test("onboarding, CRUD, budgets, analytics, persistence and backup", async ({
 });
 test("sample app looks good at mobile sizes", async ({ page }) => {
   await page.goto("/");
+  await page.screenshot({ path: "../../outputs/verdant-welcome.png" });
+  await page.getByRole("button", { name: "Start Now" }).click();
   await page.getByLabel("Your name").fill("Alex");
   await page.getByLabel("Explore with sample data").check();
   await page.getByRole("button", { name: "Let’s get started" }).click();
@@ -91,7 +94,7 @@ test("sample app looks good at mobile sizes", async ({ page }) => {
   await page.setViewportSize({ width: 393, height: 900 });
   await page.screenshot({
     path: "../../outputs/verdant-home.png",
-    fullPage: true,
+    fullPage: false,
   });
   await page
     .getByRole("navigation")
@@ -99,6 +102,6 @@ test("sample app looks good at mobile sizes", async ({ page }) => {
     .click();
   await page.screenshot({
     path: "../../outputs/verdant-analytics.png",
-    fullPage: true,
+    fullPage: false,
   });
 });

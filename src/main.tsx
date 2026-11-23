@@ -27,6 +27,11 @@ import {
   Trash2,
   Search,
   Leaf,
+  Bell,
+  SlidersHorizontal,
+  CircleDollarSign,
+  ReceiptText,
+  Grid2X2,
 } from "lucide-react";
 import {
   categories,
@@ -69,6 +74,10 @@ const localDate = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 function App() {
+  const [welcome, setWelcome] = useState(true);
+  const [initialType, setInitialType] = useState<"income" | "expense">(
+    "expense",
+  );
   const [data, setData] = useState<Data>(emptyData() as Data),
     [ready, setReady] = useState(false),
     [error, setError] = useState(""),
@@ -157,12 +166,14 @@ function App() {
     setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   };
   const openTransaction = (t: Transaction | null = null) => {
+    setInitialType(t?.type || "expense");
     setEditing(t);
     setModal("transaction");
   };
   async function start(e: React.FormEvent) {
     e.preventDefault();
     const n = name.trim() || "Friend";
+    setName(n);
     await save(
       (sample
         ? demoData(n, currency)
@@ -217,14 +228,14 @@ function App() {
           >
             <span
               className={
-                "category-icon " +
-                (t.type === "income" ? "lime" : t.category.toLowerCase())
+                "category-icon transfer-icon " +
+                (t.type === "income" ? "received" : "sent")
               }
             >
               {t.type === "income" ? (
-                <ArrowDownLeft size={20} />
+                <ArrowDownLeft size={21} />
               ) : (
-                <Icon category={t.category} />
+                <ArrowUpRight size={21} />
               )}
             </span>
             <span className="transaction-label">
@@ -237,11 +248,10 @@ function App() {
                 })}
               </small>
             </span>
-            <strong className={t.type === "income" ? "positive" : ""}>
+            <strong>
               {t.type === "income" ? "+" : "−"}
               {money(t.amount)}
             </strong>
-            <ChevronRight size={14} className="muted" />
           </button>
         ))}
       </div>
@@ -322,31 +332,44 @@ function App() {
         )}
       </main>
     );
+  if (!data.onboarded && welcome)
+    return (
+      <main className="welcome-screen">
+        <div
+          className="welcome-art"
+          role="img"
+          aria-label="Two gold coins behind dark glass panels"
+        />
+        <div className="welcome-copy">
+          <h1>
+            Maintain Your
+            <br />
+            Personal Finance,
+            <br />
+            Made Simple
+          </h1>
+          <p>
+            Manage your finances with ease. Start by customizing your app
+            experience for smarter financial choices.
+          </p>
+        </div>
+        <button className="start-button" onClick={() => setWelcome(false)}>
+          Start Now <ArrowRight size={20} />
+        </button>
+      </main>
+    );
   if (!data.onboarded)
     return (
       <main className="onboarding">
         <div className="wordmark">
           <Leaf /> verdant<span>budget</span>
         </div>
-        <div className="coin-scene">
-          <div className="orbit o1" />
-          <div className="orbit o2" />
-          <div className="coin small">$</div>
-          <div className="coin">$</div>
-          <span className="spark s1">✦</span>
-          <span className="spark s2">✧</span>
+        <div className="setup-heading">
+          <h1>Make it personal.</h1>
+          <p className="intro">
+            A few details, then you’re ready to take control.
+          </p>
         </div>
-        <span className="eyebrow">SMALL HABITS. BIG POSSIBILITIES.</span>
-        <h1>
-          Your money.
-          <br />A little more
-          <br />
-          <em>in your control.</em>
-        </h1>
-        <p className="intro">
-          Make room for what matters. Track your spending, build a budget, and
-          find your balance.
-        </p>
         <form onSubmit={start}>
           <label>
             Your name
@@ -387,45 +410,53 @@ function App() {
       </main>
     );
   return (
-    <div className="app">
+    <div className={"app tab-" + tab.toLowerCase()}>
       <header className="topbar">
-        <div className="wordmark">
-          <Leaf /> verdant<span>budget</span>
-        </div>
-        <button
-          className="avatar"
-          aria-label="Open settings"
-          onClick={() => setTab("Settings")}
-        >
-          {data.name.slice(0, 1).toUpperCase()}
-        </button>
+        {tab === "Home" ? (
+          <>
+            <button
+              className="avatar"
+              aria-label="Open settings"
+              onClick={() => setTab("Settings")}
+            >
+              {data.name.slice(0, 1).toUpperCase()}
+            </button>
+            <div className="welcome-name">
+              <span>Welcome Back</span>
+              <h1>{data.name}</h1>
+            </div>
+            <button
+              className="round-button"
+              aria-label="View budget alerts"
+              onClick={() => setTab("Budgets")}
+            >
+              <Bell size={22} />
+              {Object.keys(limits).some((c) => s.byCategory[c] > limits[c]) && (
+                <i className="alert-dot" />
+              )}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              className="round-button"
+              aria-label="Back to home"
+              onClick={() => setTab("Home")}
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <h1>{tab}</h1>
+            <button
+              className="round-button"
+              aria-label="Open settings"
+              onClick={() => setTab("Settings")}
+            >
+              <SlidersHorizontal size={22} />
+            </button>
+          </>
+        )}
       </header>
       <main className="content">
-        <div className="page-heading">
-          <div>
-            <p className="eyebrow">
-              {tab === "Home"
-                ? "YOUR EVERYDAY, IN BALANCE"
-                : "MAKE EVERY LITTLE BIT COUNT"}
-            </p>
-            <h1>
-              {tab === "Home"
-                ? `Hello, ${data.name.split(" ")[0]}.`
-                : tab === "Analytics"
-                  ? "The bigger picture."
-                  : tab === "Budgets"
-                    ? "A plan for your money."
-                    : tab === "Transactions"
-                      ? "Your money in motion."
-                      : "Make it yours."}
-            </h1>
-          </div>
-          {tab === "Home" && (
-            <span className="hello-leaf">
-              <Leaf size={28} />
-            </span>
-          )}
-        </div>
         {tab !== "Settings" && (
           <div className="month-picker">
             <button onClick={() => changeMonth(-1)} aria-label="Previous month">
@@ -441,77 +472,74 @@ function App() {
         {tab === "Home" && (
           <>
             <section className="balance-card">
-              <div className="balance-glow" />
-              <div className="spread">
-                <span className="balance-label">Total balance</span>
-                <span className="live-dot">On this device</span>
-              </div>
+              <span className="balance-label">Total Balance</span>
               <h2>{money(s.balance)}</h2>
-              <p className="balance-caption">
-                A little clarity. A lot of possibility.
-              </p>
-              <div className="balance-stats">
-                <div>
+              <span className="savings-pill">
+                <ArrowUpRight size={17} />
+                {s.income
+                  ? `${Math.round(((s.income - s.spent) / s.income) * 100)}% saved`
+                  : "Your fresh start"}
+              </span>
+              <div className="quick-actions">
+                <button
+                  onClick={() => {
+                    setEditing(null);
+                    setInitialType("income");
+                    setModal("transaction");
+                  }}
+                >
                   <span>
-                    <ArrowDownLeft size={16} /> Income this month
+                    <CircleDollarSign size={26} />
                   </span>
-                  <strong>{money(s.income)}</strong>
-                </div>
-                <div>
+                  Income
+                </button>
+                <button
+                  aria-label="Add transaction"
+                  onClick={() => openTransaction()}
+                >
                   <span>
-                    <ArrowUpRight size={16} /> Expenses this month
+                    <ShoppingBag size={26} />
                   </span>
-                  <strong>{money(s.spent)}</strong>
-                </div>
+                  Expense
+                </button>
+                <button
+                  aria-label="Set a budget"
+                  onClick={() => setModal("budget")}
+                >
+                  <span>
+                    <ReceiptText size={26} />
+                  </span>
+                  Budget
+                </button>
+                <button onClick={() => setTab("Settings")}>
+                  <span>
+                    <Grid2X2 size={26} />
+                  </span>
+                  More
+                </button>
               </div>
             </section>
-            <div className="quick-actions">
-              <button onClick={() => openTransaction()}>
-                <span>
-                  <Plus size={22} />
-                </span>
-                Add transaction
-              </button>
-              <button onClick={() => setModal("budget")}>
-                <span>
-                  <Wallet size={21} />
-                </span>
-                Set a budget
-              </button>
-              <button onClick={() => setTab("Analytics")}>
-                <span>
-                  <ChartNoAxesCombined size={21} />
-                </span>
-                View insights
-              </button>
-            </div>
-            <section className="insight-card">
-              <span className="insight-art">
-                <Leaf size={45} />
-              </span>
+            <section className="insight-card reference-promo">
               <div>
-                <span className="eyebrow">A LITTLE CHECK-IN</span>
-                <h3>
-                  {totalBudget
-                    ? `${money(Math.max(totalBudget - budgetSpent, 0))} of your budget left`
-                    : "Give your money a direction."}
-                </h3>
+                <h3>Save & Grow</h3>
                 <p>
                   {totalBudget
-                    ? "Small choices today. More freedom tomorrow."
-                    : "Set a monthly budget and spend with intention."}
+                    ? `${money(Math.max(totalBudget - budgetSpent, 0))} of your budget left`
+                    : "A little planning. More possibilities."}
                 </p>
+                <button
+                  className="outline-button"
+                  aria-label="View budgets"
+                  onClick={() => setTab("Budgets")}
+                >
+                  View Budgets
+                </button>
               </div>
-              <button
-                aria-label="View budgets"
-                onClick={() => setTab("Budgets")}
-              >
-                <ArrowUpRight />
-              </button>
+              <img src="/ribbon.svg" alt="" className="ribbon-art" />
             </section>
             <section className="panel">
               <div className="section-title">
-                <h2>Recent transactions</h2>
+                <h2>Transactions</h2>
                 <button
                   onClick={() => {
                     setQuery("");
@@ -629,12 +657,30 @@ function App() {
           <>
             <section className="panel analytics-panel">
               <div className="section-title">
-                <h2>Spending overview</h2>
+                <h2>Spending Overview</h2>
                 <span className="category-icon lime">
-                  <ChartNoAxesCombined size={22} />
+                  <ArrowUpRight size={22} />
                 </span>
               </div>
-              <p className="muted">Total spent this month</p>
+              <div className="analytics-update">
+                <div>
+                  <p>Last Update</p>
+                  <span>
+                    {data.transactions
+                      .filter((t) => t.date.startsWith(month))
+                      .map((t) => t.date)
+                      .sort()
+                      .at(-1) || "No entries yet"}
+                  </span>
+                </div>
+                <strong>
+                  {s.income
+                    ? Math.round((s.spent / s.income) * 100) + "%"
+                    : "—"}
+                  <small>of income spent</small>
+                </strong>
+              </div>
+              <p className="muted spending-label">Total spent this month</p>
               <div className="chart-total">{money(s.spent)}</div>
               <SpendingChart
                 transactions={data.transactions.filter(
@@ -644,35 +690,70 @@ function App() {
                 month={month}
               />
             </section>
-            <div className="two-stats">
-              <div className="panel">
-                <span className="muted">Income saved</span>
-                <h2>
-                  {s.income
-                    ? Math.round(((s.income - s.spent) / s.income) * 100) + "%"
-                    : "—"}
-                </h2>
-                <small>of this month’s income</small>
-              </div>
-              <div className="panel">
-                <span className="muted">Daily average</span>
-                <h2>
-                  {money(
-                    Math.round(
-                      s.spent /
-                        (month === monthNow()
-                          ? new Date().getDate()
-                          : new Date(
-                              Number(month.slice(0, 4)),
-                              Number(month.slice(5)),
-                              0,
-                            ).getDate()),
-                    ),
-                  )}
-                </h2>
-                <small>expenses per day</small>
-              </div>
+            <div className="analytics-categories">
+              {["Groceries", "Utilities"].map((c, i) => {
+                const spent = s.byCategory[c] || 0;
+                const percentage = limits[c]
+                  ? Math.round((spent / limits[c]) * 100)
+                  : s.spent
+                    ? Math.round((spent / s.spent) * 100)
+                    : 0;
+                return (
+                  <button
+                    className={"mini-category mini-" + i}
+                    key={c}
+                    onClick={() => {
+                      setQuery(c);
+                      setFilter("expense");
+                      setTab("Transactions");
+                    }}
+                  >
+                    <div className="spread">
+                      <h3>{c}</h3>
+                      <span>Monthly</span>
+                    </div>
+                    <MiniChart
+                      transactions={data.transactions.filter(
+                        (t) =>
+                          t.type === "expense" &&
+                          t.category === c &&
+                          t.date.startsWith(month),
+                      )}
+                      month={month}
+                    />
+                    <div className="spread">
+                      <strong>{percentage}%</strong>
+                      <small>{money(spent)}</small>
+                    </div>
+                    <p>
+                      {limits[c] ? "of category budget" : "of monthly spending"}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
+            <section className="panel">
+              <div className="section-title">
+                <h2>Spending Transactions</h2>
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setFilter("expense");
+                    setTab("Transactions");
+                  }}
+                >
+                  See all
+                </button>
+              </div>
+              {transactionList(
+                data.transactions
+                  .filter(
+                    (t) => t.type === "expense" && t.date.startsWith(month),
+                  )
+                  .sort((a, b) => b.date.localeCompare(a.date)),
+                3,
+              )}
+            </section>
             <section className="panel">
               <div className="section-title">
                 <h2>Where it went</h2>
@@ -872,6 +953,7 @@ function App() {
               <TransactionForm
                 key={editing?.id || "new"}
                 transaction={editing}
+                initialType={initialType}
                 month={month}
                 onSave={async (t) => {
                   const next = {
@@ -997,6 +1079,8 @@ function App() {
                       } else if (await save(emptyData() as Data)) {
                         setConfirm("");
                         setName("");
+                        setSample(false);
+                        setWelcome(true);
                         setCurrency("USD");
                         setTab("Home");
                       }
@@ -1033,16 +1117,18 @@ function App() {
 }
 function TransactionForm({
   transaction,
+  initialType,
   month,
   onSave,
   onDelete,
 }: {
   transaction: Transaction | null;
+  initialType: "income" | "expense";
   month: string;
   onSave: (t: Transaction) => Promise<void>;
   onDelete: () => void;
 }) {
-  const [type, setType] = useState(transaction?.type || "expense"),
+  const [type, setType] = useState(transaction?.type || initialType),
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false);
   return (
@@ -1258,12 +1344,11 @@ function SpendingChart({
           />
         ))}
         <polygon points={`0,140 ${points} 300,140`} fill="url(#chartFill)" />
-        <polyline
-          points={points}
+        <path
+          d={smoothPath(values, 300, 100, 130, max)}
           fill="none"
-          stroke="#b1e887"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
+          stroke="#279a37"
+          strokeWidth="1.5"
         />
         {[0, 7, 14, 21, days - 1].map((i) => (
           <text
@@ -1281,4 +1366,58 @@ function SpendingChart({
     </div>
   );
 }
+function smoothPath(
+  values: number[],
+  width: number,
+  height: number,
+  bottom: number,
+  max: number,
+) {
+  const p = values.map((v, i) => [
+    (i / (values.length - 1)) * width,
+    bottom - (v / max) * height,
+  ]);
+  return p.reduce((path, point, i) => {
+    if (!i) return `M ${point[0]},${point[1]}`;
+    const previous = p[i - 1],
+      before = p[Math.max(0, i - 2)],
+      after = p[Math.min(p.length - 1, i + 1)];
+    return (
+      path +
+      ` C ${previous[0] + (point[0] - before[0]) / 6},${previous[1] + (point[1] - before[1]) / 6} ${point[0] - (after[0] - previous[0]) / 6},${point[1] - (after[1] - previous[1]) / 6} ${point[0]},${point[1]}`
+    );
+  }, "");
+}
+function MiniChart({
+  transactions,
+  month,
+}: {
+  transactions: Transaction[];
+  month: string;
+}) {
+  const days = new Date(
+    Number(month.slice(0, 4)),
+    Number(month.slice(5)),
+    0,
+  ).getDate();
+  const values = Array.from({ length: 6 }, (_, i) =>
+    transactions
+      .filter(
+        (t) =>
+          Math.min(
+            5,
+            Math.floor(((Number(t.date.slice(-2)) - 1) / days) * 6),
+          ) === i,
+      )
+      .reduce((s, t) => s + t.amount, 0),
+  );
+  const path = smoothPath(values, 180, 65, 85, Math.max(...values, 1));
+  return (
+    <svg viewBox="0 0 180 100" aria-hidden="true">
+      <path d={path + " L180,100 L0,100 Z"} fill="currentColor" opacity=".09" />
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
 createRoot(document.getElementById("root")!).render(<App />);
+import "./reference.css";
