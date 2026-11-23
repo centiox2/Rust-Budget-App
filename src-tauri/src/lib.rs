@@ -1,25 +1,43 @@
-use std::{fs, sync::Mutex};
+mod model;
+use model::BudgetData;
+use std::{fs, io::Write, sync::Mutex};
 use tauri::Manager;
 
 #[tauri::command]
-fn load_data(app: tauri::AppHandle, lock: tauri::State<'_, Mutex<()>>) -> Result<Option<serde_json::Value>, String> {
+fn load_data(
+    app: tauri::AppHandle,
+    lock: tauri::State<'_, Mutex<()>>,
+) -> Result<Option<BudgetData>, String> {
     let _guard = lock.lock().map_err(|e| e.to_string())?;
-    let path = app.path().app_data_dir().map_err(|e| e.to_string())?.join("budget.json");
-    if !path.exists() { return Ok(None); }
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("budget.json");
+    if !path.exists() {
+        return Ok(None);
+    }
     let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&data).map(Some).map_err(|e| e.to_string())
+    let parsed: BudgetData = serde_json::from_str(&data).map_err(|e| e.to_string())?;
+    parsed.validate()?;
+    Ok(Some(parsed))
 }
 #[tauri::command]
-fn save_data(app: tauri::AppHandle, data: serde_json::Value, lock: tauri::State<'_, Mutex<()>>) -> Result<(), String> {
+fn save_data(
+    app: tauri::AppHandle,
+    data: BudgetData,
+    lock: tauri::State<'_, Mutex<()>>,
+) -> Result<(), String> {
     let _guard = lock.lock().map_err(|e| e.to_string())?;
-    if data["version"] != 1 || !data["transactions"].is_array() || !data["budgets"].is_object() {
-        return Err("Invalid budget data".into());
-    }
+    data.validate()?;
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let bytes = serde_json::to_vec(&data).map_err(|e| e.to_string())?;
     let temp = dir.join("budget.tmp");
-    fs::write(&temp, bytes).map_err(|e| e.to_string())?;
+    let mut file = fs::File::create(&temp).map_err(|e| e.to_string())?;
+    file.write_all(&bytes).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    drop(file);
     fs::rename(temp, dir.join("budget.json")).map_err(|e| e.to_string())
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
