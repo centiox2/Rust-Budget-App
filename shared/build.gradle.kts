@@ -42,6 +42,7 @@ compose.resources { packageOfResClass = "com.centiox.verdant.resources"; publicR
 tasks.withType<Test>().configureEach {
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
-    val screenshots = if (System.getenv("CI") == "true") rootProject.layout.buildDirectory.dir("ui-screenshots").get().asFile else rootProject.rootDir.parentFile.parentFile.resolve("outputs")
+    val screenshots = rootProject.layout.buildDirectory.dir("ui-screenshots").get().asFile
     systemProperty("verdant.screenshots", screenshots.absolutePath)
+    outputs.dir(screenshots)
 }
