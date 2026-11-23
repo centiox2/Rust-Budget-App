@@ -113,13 +113,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            mkdir -p artifacts/android-screenshots
-            trap 'adb logcat -d > artifacts/android-logcat.txt; adb pull /sdcard/Android/data/com.centiox.verdant.driver/files/screenshots/. artifacts/android-screenshots/ || true' EXIT
-            ./gradlew :androidApp:connectedDebugAndroidTest :androidApp:assembleRelease --max-workers=2 --stacktrace
-            adb uninstall com.centiox.verdant
-            adb install androidApp/build/outputs/apk/release/androidApp-release.apk
-            ./gradlew :releaseDriver:connectedDebugAndroidTest --max-workers=2 --stacktrace
+          script: bash .github/scripts/android-checks.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:

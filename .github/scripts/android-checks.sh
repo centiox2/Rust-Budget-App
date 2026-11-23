@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p artifacts/android-screenshots
+collect_evidence() {
+  adb logcat -d > artifacts/android-logcat.txt || true
+  adb pull /sdcard/Android/data/com.centiox.verdant.driver/files/screenshots/. artifacts/android-screenshots/ || true
+}
+trap collect_evidence EXIT
+
+./gradlew :androidApp:assembleRelease :releaseDriver:assembleDebugAndroidTest --max-workers=2 --stacktrace
+integration_status=0
+./gradlew :androidApp:connectedDebugAndroidTest --max-workers=2 --stacktrace || integration_status=$?
+adb pull /sdcard/Android/data/com.centiox.verdant/files/screenshots/. artifacts/android-screenshots/ || true
+
+# Clear the debug install, then exercise the exact signed production binary.
+adb uninstall com.centiox.verdant
+adb install androidApp/build/outputs/apk/release/androidApp-release.apk
+release_status=0
+./gradlew :releaseDriver:connectedDebugAndroidTest --max-workers=2 --stacktrace || release_status=$?
+if (( integration_status != 0 || release_status != 0 )); then exit 1; fi
