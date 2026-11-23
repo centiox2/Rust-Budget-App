@@ -60,8 +60,11 @@ class ReleaseFlowTest {
     }
 
     private fun launch() {
-        device.executeShellCommand("am start -W -n $app/.MainActivity")
-        assertTrue(device.wait(Until.hasObject(By.pkg(app)), 20_000))
+        val result = device.executeShellCommand("am start -W -n $app/.MainActivity")
+        assertTrue(
+            "Launch: $result; foreground: ${device.currentPackageName}",
+            device.wait(Until.hasObject(By.pkg(app)), 20_000),
+        )
     }
 
     private fun hideKeyboard() {
@@ -126,7 +129,7 @@ class ReleaseFlowTest {
         hideKeyboard()
         // The result row is a separate node from the search input.
         val purchase =
-            node(By.text("Release verification purchase").clazz("android.widget.TextView"))
+            node(By.textContains("Release verification purchase").clazz("android.widget.TextView"))
         purchase.click()
         scrollClick(By.text("Delete transaction"))
         click(By.text("Delete"))

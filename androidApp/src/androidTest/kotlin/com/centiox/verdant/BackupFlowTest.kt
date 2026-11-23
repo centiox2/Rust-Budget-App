@@ -85,6 +85,9 @@ class BackupFlowTest {
         }
         Assert.assertEquals("Backup owner", exported!!.name)
         compose.onNodeWithText("Reset all data").performScrollTo().performClick()
+        compose.waitUntil(10000) {
+            compose.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()
+        }
         compose
             .onNode(
                 hasText("Reset all data") and hasAnyAncestor(isDialog()),

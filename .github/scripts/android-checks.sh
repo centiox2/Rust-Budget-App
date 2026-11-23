@@ -7,6 +7,16 @@ collect_evidence() {
 }
 trap collect_evidence EXIT
 
+# The Google emulator launcher can ANR while its first-run setup competes with Gradle.
+# Tests launch explicit activities and do not need a home launcher or its overlays.
+for launcher in com.google.android.apps.nexuslauncher com.android.launcher3; do
+  if adb shell pm path "$launcher" | grep -q '^package:'; then
+    adb shell am force-stop "$launcher"
+    adb shell pm disable-user --user 0 "$launcher"
+  fi
+done
+adb shell wm dismiss-keyguard
+
 integration_status=0
 ./gradlew :androidApp:connectedDebugAndroidTest --max-workers=2 --stacktrace || integration_status=$?
 
