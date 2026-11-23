@@ -26,13 +26,14 @@ The APK is built by GitHub Actions — see
 `main` (or a manual "Run workflow") produces an installable artifact:
 
 1. Open the **Actions** tab of the repository.
-2. Pick the latest **Android APK** run.
-3. Download the **budget-apk** artifact and install `budget.apk`.
+2. Pick the latest green **Android APK** run.
+3. Download the **budget-apk** artifact and install `amara-budget.apk`.
 
 The workflow installs the Android SDK, NDK r27 and the Rust Android targets,
-then runs `cargo apk build --release` for `aarch64-linux-android`,
-`armv7-linux-androideabi` and `x86_64-linux-android` (so it runs on phones and
-on emulators).
+then runs `cargo apk build` in `app/` for `aarch64-linux-android`,
+`armv7-linux-androideabi` and `x86_64-linux-android`. The package is
+debug-signed, so it installs on any phone or emulator without extra setup; a
+release build needs a keystore in `[package.metadata.android.signing.release]`.
 
 To build locally with the same toolchain you need the Android SDK, the NDK, a
 JDK, and:
@@ -40,26 +41,32 @@ JDK, and:
 ```sh
 rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 cargo install cargo-apk
-ANDROID_NDK_HOME=/path/to/ndk cargo apk build --release
+cd app
+ANDROID_NDK_HOME=/path/to/ndk cargo apk build
 ```
 
 ## Running on the desktop
 
 ```sh
-cargo run
+cargo run -p budget-desktop
 ```
 
 The desktop build is the same code as the phone build and is the quickest way
 to work on the interface.
 
-## Where things are
+## Layout
 
-- `src/app.rs` — app state, bottom navigation, sheet and toast hosting.
-- `src/screens/` — one file per screen.
-- `src/sheets.rs` — the two bottom sheets.
-- `src/widgets.rs`, `src/icons.rs` — painted primitives and a hand-drawn vector
-  icon set (no icon font, no images).
-- `src/theme.rs` — palette, bundled Inter typefaces, egui style.
-- `src/model.rs`, `src/store.rs`, `src/seed.rs` — data, JSON persistence and the
+```
+app/       the app itself: cdylib + lib, and the cargo apk metadata
+desktop/   a thin binary that runs the app in a window
+```
+
+- `app/src/app.rs` — app state, bottom navigation, sheet and toast hosting.
+- `app/src/screens/` — one file per screen.
+- `app/src/sheets.rs` — the two bottom sheets.
+- `app/src/widgets.rs`, `app/src/icons.rs` — painted primitives and a
+  hand-drawn vector icon set (no icon font, no images).
+- `app/src/theme.rs` — palette, bundled Inter typefaces, egui style.
+- `app/src/model.rs`, `store.rs`, `seed.rs` — data, JSON persistence and the
   demo workspace.
-- `assets/fonts/` — Inter and Inter Display, bundled into the binary.
+- `app/assets/fonts/` — Inter and Inter Display, bundled into the binary.
