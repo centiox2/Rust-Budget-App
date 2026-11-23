@@ -48,7 +48,7 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
-        run: cargo apk build
+        run: cargo apk build --no-default-features
 
       - name: Show what was built
         run: ls -la target/debug/apk/

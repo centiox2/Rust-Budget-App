@@ -10,9 +10,16 @@ publish = false
 name = "budget_app"
 crate-type = ["cdylib", "lib"]
 
+# The desktop entry point is a feature so that `cargo apk` only ever sees the
+# cdylib: shipping a bin alongside it makes cargo-apk panic after packaging.
+[features]
+default = ["desktop"]
+desktop = []
+
 [[bin]]
 name = "budget-app"
 path = "src/main.rs"
+required-features = ["desktop"]
 
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = [
