@@ -119,6 +119,50 @@ function App() {
       return () => clearTimeout(t);
     }
   }, [toast]);
+  useEffect(() => {
+    if (!modal && !confirm) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusable = () => {
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+      const active = dialogs[dialogs.length - 1];
+      return active
+        ? Array.from(
+            active.querySelectorAll<HTMLElement>(
+              'button:not(:disabled),input,select,textarea,[tabindex="0"]',
+            ),
+          ).filter((el) => el.offsetParent !== null)
+        : [];
+    };
+    const frame = requestAnimationFrame(() => focusable()[0]?.focus());
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (confirm) setConfirm("");
+        else setModal(null);
+      }
+      if (event.key === "Tab") {
+        const items = focusable(),
+          first = items[0],
+          last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.body.style.overflow = overflow;
+      document.removeEventListener("keydown", handleKey);
+      previousFocus?.focus();
+    };
+  }, [modal, confirm]);
   async function save(next: Data) {
     validate(next);
     const op = queue.current.then(async () => {
@@ -1135,6 +1179,7 @@ function TransactionForm({
     <form
       onSubmit={async (e) => {
         e.preventDefault();
+        setErr("");
         const f = new FormData(e.currentTarget);
         try {
           setBusy(true);
@@ -1255,6 +1300,7 @@ function BudgetForm({
     <form
       onSubmit={async (e) => {
         e.preventDefault();
+        setErr("");
         try {
           const f = new FormData(e.currentTarget),
             out: Record<string, number> = {};

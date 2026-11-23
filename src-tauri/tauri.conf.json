@@ -15,7 +15,8 @@
         "title": "Verdant Budget",
         "width": 430,
         "height": 900,
-        "minWidth": 360
+        "minWidth": 360,
+        "backgroundColor": "#000000"
       }
     ],
     "security": {

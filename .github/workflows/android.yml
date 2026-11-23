@@ -2,7 +2,6 @@ name: Android APK
 on:
   push:
     branches: [main, "rebuild/**"]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,7 +24,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: App-Screenshots
-          path: ../../outputs/*.png
+          path: screenshots/*.png
           if-no-files-found: error
   android:
     runs-on: ubuntu-22.04

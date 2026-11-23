@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { demoData } from "../src/model.mjs";
+const screenshotDir = process.env.CI ? "screenshots" : "../../outputs";
 test("onboarding, CRUD, budgets, analytics, persistence and backup", async ({
   page,
 }) => {
@@ -78,7 +80,7 @@ test("onboarding, CRUD, budgets, analytics, persistence and backup", async ({
 });
 test("sample app looks good at mobile sizes", async ({ page }) => {
   await page.goto("/");
-  await page.screenshot({ path: "../../outputs/verdant-welcome.png" });
+  await page.screenshot({ path: `${screenshotDir}/verdant-welcome.png` });
   await page.getByRole("button", { name: "Start Now" }).click();
   await page.getByLabel("Your name").fill("Alex");
   await page.getByLabel("Explore with sample data").check();
@@ -93,7 +95,7 @@ test("sample app looks good at mobile sizes", async ({ page }) => {
   }
   await page.setViewportSize({ width: 393, height: 900 });
   await page.screenshot({
-    path: "../../outputs/verdant-home.png",
+    path: `${screenshotDir}/verdant-home.png`,
     fullPage: false,
   });
   await page
@@ -101,7 +103,92 @@ test("sample app looks good at mobile sizes", async ({ page }) => {
     .getByRole("button", { name: "Analytics", exact: true })
     .click();
   await page.screenshot({
-    path: "../../outputs/verdant-analytics.png",
+    path: `${screenshotDir}/verdant-analytics.png`,
     fullPage: false,
   });
+});
+
+test("native storage bridge, invalid input, backup recovery and save failures", async ({
+  page,
+}) => {
+  const initial = demoData("Taylor", "KES");
+  await page.addInitScript((data) => {
+    (window as any).isTauri = true;
+    (window as any).__nativeData =
+      JSON.parse(sessionStorage.getItem("native") || "null") || data;
+    (window as any).__TAURI_INTERNALS__ = {
+      invoke: async (command: string, args: any) => {
+        if (command === "load_data") return (window as any).__nativeData;
+        if (command === "save_data") {
+          if ((window as any).__failSave) throw Error("Disk full");
+          (window as any).__nativeData = args.data;
+          sessionStorage.setItem("native", JSON.stringify(args.data));
+          return;
+        }
+        throw Error("Unexpected command " + command);
+      },
+    };
+  }, initial);
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Taylor" })).toBeVisible();
+  const before = await page.locator(".balance-card h2").textContent();
+  await page.getByRole("button", { name: "Income", exact: true }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("2.999");
+  await page.getByLabel("What was it for?").fill("Extra income");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Add transaction" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("2 decimals");
+  await page.getByLabel("Amount", { exact: true }).fill("10");
+  await page.evaluate(() => ((window as any).__failSave = true));
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Add transaction" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Disk full");
+  await expect(page.locator(".balance-card h2")).toHaveText(before!);
+  await page.evaluate(() => ((window as any).__failSave = false));
+  await page.getByRole("button", { name: "Dismiss error" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Add transaction" })
+    .click();
+  await page.reload();
+  await expect(page.locator(".balance-card h2")).not.toHaveText(before!);
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Settings", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Export backup" }).click();
+  const backup = await page
+    .getByRole("dialog")
+    .getByRole("textbox")
+    .inputValue();
+  expect(JSON.parse(backup).transactions.length).toBe(
+    initial.transactions.length + 1,
+  );
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Restore backup", exact: true })
+    .click();
+  await page.getByPlaceholder("Paste backup JSON").fill('{"version":99}');
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore backup" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("valid Verdant backup");
+  await page.getByRole("button", { name: "Dismiss error" }).click();
+  await page
+    .getByPlaceholder("Paste backup JSON")
+    .fill(JSON.stringify(initial));
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Restore backup" })
+    .click();
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Home", exact: true })
+    .click();
+  await expect(page.locator(".balance-card h2")).toHaveText(before!);
 });

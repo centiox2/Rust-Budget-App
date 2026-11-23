@@ -8,7 +8,7 @@ A fresh Android budget app built with Rust, Tauri 2, React, and TypeScript. The 
 - Income and expense creation, editing, deletion, category selection, and dates.
 - Lifetime balance, monthly summaries, search, filters, and month navigation.
 - Monthly category budgets, remaining amounts, and over-budget indicators.
-- Daily spending chart, category breakdown, daily average, and income savings rate.
+- Daily spending chart, category breakdown, category mini charts, and income savings rate.
 - Rust-managed local storage on Android; browser local storage for development.
 - JSON backup export and validated restore. Android exports selectable backup text and restores pasted text. Browser export downloads a file.
 - No accounts, servers, ads, or bank connections. Currency selection changes the display symbol without converting amounts.
@@ -43,3 +43,7 @@ npm run tauri -- android build --debug --apk --target aarch64 armv7 --ci
 ```
 
 Android scaffolding is generated from Tauri during each build, rather than copied from the previous app. All UI resources are bundled and work offline. Data is saved under the app's private data directory; uninstalling removes it. Money is stored as integer minor units, with two decimal places for supported currencies.
+
+See [artwork and font credits](docs/artwork.md) for bundled visual assets. The welcome, home, and analytics layouts closely follow the supplied screenshot. Banking actions have been mapped to working income, expense, and budget controls.
+
+Browser tests cover transaction CRUD, budgets, analytics, layout widths, backup restore, native IPC integration with a simulated host, and failed-write recovery. Rust tests cover schema round trips, calendar dates, and invalid monetary values. A successful Android build verifies compilation and packaging; physical device behavior still requires device testing.
