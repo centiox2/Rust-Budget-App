@@ -1,49 +1,53 @@
-# Verdant Budget
+# Verdant Budget — Kotlin Multiplatform
 
-A fresh Android budget app built with Rust, Tauri 2, React, and TypeScript. The previous app has been replaced entirely. The visual direction uses charcoal surfaces, forest green gradients, lime accents, and rounded cards inspired by the supplied reference.
+A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
+
+The visual direction closely follows the supplied reference: black surfaces, a forest-green balance panel, warm gold coin artwork, Poppins typography, circular actions, a folded green ribbon, and rounded analytics cards. The UI includes accessible touch targets, adaptive balance text, native date selection, keyboard-aware sheets, back navigation, and deliberate empty states.
 
 ## Features
 
-- Onboarding with USD, KES, EUR, GBP, or INR and optional sample data.
-- Income and expense creation, editing, deletion, category selection, and dates.
-- Lifetime balance, monthly summaries, search, filters, and month navigation.
-- Monthly category budgets, remaining amounts, and over-budget indicators.
-- Daily spending chart, category breakdown, category mini charts, and income savings rate.
-- Rust-managed local storage on Android; browser local storage for development.
-- JSON backup export and validated restore. Android exports selectable backup text and restores pasted text. Browser export downloads a file.
-- No accounts, servers, ads, or bank connections. Currency selection changes the display symbol without converting amounts.
+- Income and expense creation, editing, deletion, categories, and dates.
+- Lifetime balance and monthly totals, search, filters, and month navigation.
+- Monthly category budgets and over-budget indicators.
+- Daily spending charts, category breakdowns, and savings percentages.
+- USD, KES, EUR, GBP, and INR. Currency selection changes the display symbol without converting amounts.
+- Local storage with atomic writes and Keystore-backed encryption on Android. Failed writes leave the active ledger unchanged.
+- Native JSON backup export and restore with validation and confirmation before replacement.
+- Backup compatibility with the previous Verdant Rust/Tauri implementation.
+- Optional sample data, kept separate from a new empty ledger.
 
-## Development
+## Project structure
 
-Install Node 22+, Rust stable, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+| Module | Responsibility |
+| --- | --- |
+| `shared` | Kotlin Multiplatform Android library + desktop JVM target; shared Compose UI, model, calculations, serialization, repository, common tests, and rendered UI tests |
+| `androidApp` | Android launcher, lifecycle, atomic private storage, native document pickers, and instrumented UI tests |
+| `desktopApp` | Desktop JVM launcher, local storage, and native file dialogs |
 
-```sh
-npm ci
-npm run dev
-npm test
-npx playwright install chromium
-npx playwright test
-npm run build
-cargo test --manifest-path src-tauri/Cargo.toml --locked
-```
+Android and desktop are implemented targets. iOS is not included in this build.
 
-For native desktop development: `npm run tauri -- dev`.
+## Build and run
 
-## Android APK
-
-GitHub Actions → **Android APK** builds an installable APK for ARM64 and ARMv7. Download **Verdant-Budget-Android** from a successful run and extract `Verdant-Budget-android.apk`. Enable installation from your download app when Android prompts you.
-
-This is a development-signed debug APK for device testing, not a Play Store release. GitHub runners may use a different development signing key on later runs; export a backup before uninstalling to install a differently signed build. Production distribution needs a private release signing key and release configuration.
-
-To build locally, install JDK 17, Android SDK 35 and NDK 27.2.12479018, set `JAVA_HOME`, `ANDROID_HOME`, and `NDK_HOME`, then:
+Use JDK 17 and Android SDK 36. Open the root folder in Android Studio or IntelliJ IDEA with Kotlin Multiplatform support. Set the Android SDK path in `local.properties` when building locally.
 
 ```sh
-npm run tauri -- android init --ci
-npm run tauri -- android build --debug --apk --target aarch64 armv7 --ci
+./gradlew :shared:desktopTest
+./gradlew :desktopApp:run
+./gradlew :androidApp:assembleRelease
+./gradlew :androidApp:lintRelease
+./gradlew :androidApp:connectedReleaseAndroidTest
 ```
 
-Android scaffolding is generated from Tauri during each build, rather than copied from the previous app. All UI resources are bundled and work offline. Data is saved under the app's private data directory; uninstalling removes it. Money is stored as integer minor units, with two decimal places for supported currencies.
+On Windows, use `gradlew.bat`. The Gradle wrapper includes a distribution checksum. Versions are pinned: Kotlin 2.3.10, Compose Multiplatform 1.10.3, Android Gradle Plugin 8.13.2, and Gradle 8.13. The shared module uses the Android-KMP library plugin and the Android launcher is a separate module, following the [KMP module structure](https://kotlinlang.org/docs/multiplatform/multiplatform-project-agp-9-migration.html).
 
-See [artwork and font credits](docs/artwork.md) for bundled visual assets. The welcome, home, and analytics layouts closely follow the supplied screenshot. Banking actions have been mapped to working income, expense, and budget controls.
+## APK and validation
 
-Browser tests cover transaction CRUD, budgets, analytics, layout widths, backup restore, native IPC integration with a simulated host, and failed-write recovery. Rust tests cover schema round trips, calendar dates, and invalid monetary values. A successful Android build verifies compilation and packaging; physical device behavior still requires device testing.
+GitHub Actions → **Kotlin Multiplatform Release** builds and verifies a release-signed APK and Android App Bundle. Download **Verdant-Kotlin-Release**, extract `Verdant-Budget-Kotlin.apk`, and allow Android to install it when prompted. The artifact also includes a SHA256 checksum.
+
+The workflow runs shared model/repository tests, rendered Compose UI tests at 360/393/430 widths, desktop compilation, Android lint, APK signature verification, and Android API 26 and 35 emulator tests against the optimized release covering onboarding, transactions, budgets, analytics, and activity recreation. Screenshot and test-report artifacts are saved for review.
+
+Release builds use a stable private signing key stored in GitHub Actions encrypted secrets. A previously installed development build may have a different certificate; export a backup before uninstalling it. The Kotlin app uses its own storage file; restore a previous Verdant JSON backup through Settings if migrating from Tauri. Uninstalling removes private device data. Android requires API 26 or newer.
+
+The app requests no internet permission, and all fonts and artwork are bundled. See [artwork and font credits](docs/artwork.md).
+
+See [release and signing instructions](docs/releasing.md) and [privacy and local data](docs/privacy.md). APK/AAB creation does not automatically publish the app to Google Play.
