@@ -98,7 +98,6 @@ class BackupFlowTest {
         compose
             .onNode(
                 hasText("Reset all data") and hasAnyAncestor(isDialog()),
-                useUnmergedTree = true,
             )
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000) {
