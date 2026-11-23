@@ -26,6 +26,7 @@ fun App(
     backHandler: @Composable (Boolean, () -> Unit) -> Unit = { _, _ -> },
     externalBackup: String? = null,
     onExternalBackupConsumed: () -> Unit = {},
+    rootModifier: Modifier = Modifier,
 ) = VerdantTheme {
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -134,7 +135,10 @@ fun App(
                 "The saved ledger could not be opened. It has not been overwritten. Restore a backup, or start a new ledger."
         }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.TopCenter) {
+    Box(
+        rootModifier.fillMaxSize().background(Color.Black),
+        contentAlignment = Alignment.TopCenter,
+    ) {
         Column(
             Modifier.widthIn(max = 620.dp)
                 .fillMaxSize()

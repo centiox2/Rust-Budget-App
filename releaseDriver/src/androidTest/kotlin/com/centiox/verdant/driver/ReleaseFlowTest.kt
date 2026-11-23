@@ -6,8 +6,8 @@ import androidx.test.uiautomator.*
 import java.io.File
 import java.math.BigDecimal
 import org.junit.Assert.*
-import org.junit.Test
 import org.junit.Rule
+import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import org.junit.runner.RunWith
@@ -19,14 +19,20 @@ class ReleaseFlowTest {
     private val app = "com.centiox.verdant"
 
     @get:Rule
-    val failureEvidence = object : TestWatcher() {
-        override fun failed(error: Throwable, description: Description) {
-            screenshot("android-release-failure.png")
-            val dir = File(InstrumentationRegistry.getInstrumentation().targetContext
-                .getExternalFilesDir(null), "screenshots")
-            device.dumpWindowHierarchy(File(dir, "failure-hierarchy.xml"))
+    val failureEvidence =
+        object : TestWatcher() {
+            override fun failed(error: Throwable, description: Description) {
+                screenshot("android-release-failure.png")
+                val dir =
+                    File(
+                        InstrumentationRegistry.getInstrumentation()
+                            .targetContext
+                            .getExternalFilesDir(null),
+                        "screenshots",
+                    )
+                device.dumpWindowHierarchy(File(dir, "failure-hierarchy.xml"))
+            }
         }
-    }
 
     private fun node(selector: BySelector): UiObject2 =
         device.wait(Until.findObject(selector), 20_000)
@@ -65,7 +71,9 @@ class ReleaseFlowTest {
     private fun hideKeyboard() {
         device.waitForIdle()
         val state = device.executeShellCommand("dumpsys input_method")
-        if (Regex("(?:mInputShown|mIsInputViewShown|isInputViewShown)=true").containsMatchIn(state)) {
+        if (
+            Regex("(?:mInputShown|mIsInputViewShown|isInputViewShown)=true").containsMatchIn(state)
+        ) {
             device.pressBack()
             device.waitForIdle()
         }
