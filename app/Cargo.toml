@@ -35,8 +35,6 @@ winit = { version = "0.30", features = ["android-native-activity"] }
 package_name = "com.centiox2.budget"
 apk_name = "amara-budget"
 label = "Budget"
-version_code = 1
-version_name = "0.1.0"
 build_targets = [
   "aarch64-linux-android",
   "armv7-linux-androideabi",
