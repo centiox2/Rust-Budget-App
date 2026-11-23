@@ -39,7 +39,7 @@ jobs:
           test -s "$VERDANT_SIGNING_FILE"
       - run: chmod +x gradlew
       - name: Kotlin tests, UI renders, desktop compile, release lint, APK and bundle
-        run: ./gradlew :shared:desktopTest :desktopApp:compileKotlin :androidApp:lintRelease :androidApp:assembleRelease :androidApp:bundleRelease --max-workers=2 --stacktrace
+        run: ./gradlew :shared:desktopTest :desktopApp:compileKotlin :androidApp:lintRelease :androidApp:assembleRelease :androidApp:bundleRelease :androidApp:assembleDebugAndroidTest :releaseDriver:assembleDebugAndroidTest --max-workers=2 --stacktrace
       - name: Verify release signature and stage artifacts
         run: |
           mkdir -p artifacts
