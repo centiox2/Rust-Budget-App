@@ -8,11 +8,11 @@ permissions:
 concurrency:
   group: kotlin-${{ github.ref }}
   cancel-in-progress: true
-env:
-  VERDANT_SIGNING_FILE: ${{ github.workspace }}/.signing/release.p12
-  VERDANT_SIGNING_PASSWORD: ${{ secrets.VERDANT_SIGNING_PASSWORD }}
 jobs:
   build:
+    env:
+      VERDANT_SIGNING_FILE: ${{ github.workspace }}/.signing/release.p12
+      VERDANT_SIGNING_PASSWORD: ${{ secrets.VERDANT_SIGNING_PASSWORD }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -93,13 +93,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-      - name: Prepare private release keystore
-        env:
-          KEYSTORE: ${{ secrets.VERDANT_SIGNING_KEYSTORE }}
-        run: |
-          umask 077
-          mkdir -p .signing
-          printf '%s' "$KEYSTORE" | base64 --decode > "$VERDANT_SIGNING_FILE"
+      - uses: actions/download-artifact@v4
+        with:
+          name: Verdant-Kotlin-Release
+          path: artifacts/release
+      - name: Verify downloaded production packages
+        working-directory: artifacts/release
+        run: sha256sum --check SHA256SUMS.txt
       - run: chmod +x gradlew
       - name: Enable hardware acceleration
         run: |
@@ -123,6 +123,3 @@ jobs:
             releaseDriver/build/reports/androidTests/
             artifacts/android-screenshots/
             artifacts/android-logcat.txt
-      - name: Remove temporary signing material
-        if: always()
-        run: rm -f .signing/release.p12

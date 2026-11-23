@@ -7,13 +7,12 @@ collect_evidence() {
 }
 trap collect_evidence EXIT
 
-./gradlew :androidApp:assembleRelease :releaseDriver:assembleDebugAndroidTest --max-workers=2 --stacktrace
 integration_status=0
 ./gradlew :androidApp:connectedDebugAndroidTest --max-workers=2 --stacktrace || integration_status=$?
 
 # Clear the debug install, then exercise the exact signed production binary.
 adb uninstall com.centiox.verdant || true
-adb install androidApp/build/outputs/apk/release/androidApp-release.apk
+adb install artifacts/release/Verdant-Budget-Kotlin.apk
 release_status=0
 ./gradlew :releaseDriver:connectedDebugAndroidTest --max-workers=2 --stacktrace || release_status=$?
 if (( integration_status != 0 || release_status != 0 )); then exit 1; fi
