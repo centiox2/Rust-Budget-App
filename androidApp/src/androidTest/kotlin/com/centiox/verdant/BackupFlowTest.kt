@@ -85,7 +85,12 @@ class BackupFlowTest {
         }
         Assert.assertEquals("Backup owner", exported!!.name)
         compose.onNodeWithText("Reset all data").performScrollTo().performClick()
-        compose.onAllNodesWithText("Reset all data").onLast().performClick()
+        compose
+            .onNode(
+                hasText("Reset all data") and hasAnyAncestor(isDialog()),
+                useUnmergedTree = true,
+            )
+            .performClick()
         compose.waitUntil(10000) {
             compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
         }

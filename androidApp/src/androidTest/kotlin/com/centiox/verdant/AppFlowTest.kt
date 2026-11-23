@@ -1,8 +1,6 @@
 package com.centiox.verdant
 
-import android.graphics.Bitmap
 import android.util.AtomicFile
-import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -36,15 +34,17 @@ class AppFlowTest {
 
     private fun screenshot(name: String) {
         compose.waitForIdle()
-        val directory =
-            File(compose.activity.getExternalFilesDir(null), "screenshots").also { it.mkdirs() }
-        File(directory, name).outputStream().use {
-            compose
-                .onRoot()
-                .captureToImage()
-                .asAndroidBitmap()
-                .compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        listOf(
+                "mkdir -p /sdcard/Download/verdant-test-screenshots",
+                "screencap -p /sdcard/Download/verdant-test-screenshots/$name",
+            )
+            .forEach { command ->
+                android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                        automation.executeShellCommand(command)
+                    )
+                    .use { it.readBytes() }
+            }
     }
 
     @Test

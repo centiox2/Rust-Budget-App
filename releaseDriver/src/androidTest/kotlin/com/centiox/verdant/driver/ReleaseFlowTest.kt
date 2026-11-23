@@ -3,7 +3,6 @@ package com.centiox.verdant.driver
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.*
-import java.io.File
 import java.math.BigDecimal
 import org.junit.Assert.*
 import org.junit.Rule
@@ -23,14 +22,11 @@ class ReleaseFlowTest {
         object : TestWatcher() {
             override fun failed(error: Throwable, description: Description) {
                 screenshot("android-release-failure.png")
-                val dir =
-                    File(
-                        InstrumentationRegistry.getInstrumentation()
-                            .targetContext
-                            .getExternalFilesDir(null),
-                        "screenshots",
-                    )
-                device.dumpWindowHierarchy(File(dir, "failure-hierarchy.xml"))
+                val xml = java.io.ByteArrayOutputStream()
+                device.dumpWindowHierarchy(xml)
+                xml.toString("UTF-8").chunked(3500).forEach {
+                    android.util.Log.e("VerdantReleaseEvidence", it)
+                }
             }
         }
 
@@ -81,15 +77,8 @@ class ReleaseFlowTest {
 
     private fun screenshot(name: String) {
         device.waitForIdle()
-        val dir =
-            File(
-                    InstrumentationRegistry.getInstrumentation()
-                        .targetContext
-                        .getExternalFilesDir(null),
-                    "screenshots",
-                )
-                .also { it.mkdirs() }
-        assertTrue(device.takeScreenshot(File(dir, name)))
+        device.executeShellCommand("mkdir -p /sdcard/Download/verdant-test-screenshots")
+        device.executeShellCommand("screencap -p /sdcard/Download/verdant-test-screenshots/$name")
     }
 
     private fun amount(text: String) = BigDecimal(text.replace("$", "").replace(",", ""))
