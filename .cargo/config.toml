@@ -1,0 +1,6 @@
+# The desktop build of a `cdylib`-capable crate links a DLL on Windows. MinGW's
+# ld auto-exports every symbol in that DLL, which overflows its export table
+# ("export ordinal too large"). Suppressing automatic exports fixes the desktop
+# build; the Android targets are unaffected.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-Clink-arg=-Wl,--exclude-all-symbols"]

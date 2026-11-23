@@ -1,0 +1,6 @@
+/target
+/tools
+/.tools
+run.log
+*.apk
+.DS_Store

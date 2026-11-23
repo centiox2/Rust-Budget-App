@@ -1,0 +1,51 @@
+[package]
+name = "budget-app"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Amara — a budgeting app for Android, written in Rust with egui"
+publish = false
+
+[lib]
+name = "budget_app"
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "budget-app"
+path = "src/main.rs"
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = [
+  "default_fonts",
+  "glow",
+  "android-native-activity",
+] }
+egui = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+log = "0.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.15"
+winit = { version = "0.30", features = ["android-native-activity"] }
+
+# Everything below here is what `cargo apk` reads to build the .apk.
+[package.metadata.android]
+package-name = "com.centiox2.budget"
+apk-name = "budget"
+label = "Budget"
+version-code = 1
+version-name = "0.1.0"
+build-targets = [
+  "aarch64-linux-android",
+  "armv7-linux-androideabi",
+  "x86_64-linux-android",
+]
+
+[package.metadata.android.sdk]
+min-sdk-version = 26
+target-sdk-version = 35
+
+[profile.release]
+opt-level = 2
