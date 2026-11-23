@@ -12,7 +12,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -104,20 +108,22 @@ class MainActivity : ComponentActivity() {
                 rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                     if (uri != null) model.importFrom(uri)
                 }
-            App(
-                model.repository,
-                onExport = { export.launch("verdant-${today()}.json") },
-                onImport = {
-                    restore.launch(
-                        arrayOf("application/json", "text/plain", "application/octet-stream")
-                    )
-                },
-                backHandler = { enabled, action ->
-                    BackHandler(enabled = enabled, onBack = action)
-                },
-                externalBackup = imported,
-                onExternalBackupConsumed = model::consumeImport,
-            )
+            Box(Modifier.semantics { testTagsAsResourceId = true }) {
+                App(
+                    model.repository,
+                    onExport = { export.launch("verdant-${today()}.json") },
+                    onImport = {
+                        restore.launch(
+                            arrayOf("application/json", "text/plain", "application/octet-stream")
+                        )
+                    },
+                    backHandler = { enabled, action ->
+                        BackHandler(enabled = enabled, onBack = action)
+                    },
+                    externalBackup = imported,
+                    onExternalBackupConsumed = model::consumeImport,
+                )
+            }
         }
     }
 }

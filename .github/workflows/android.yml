@@ -114,16 +114,21 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            ./gradlew :androidApp:connectedReleaseAndroidTest --max-workers=2 --stacktrace
             mkdir -p artifacts/android-screenshots
-            adb pull /sdcard/Android/data/com.centiox.verdant/files/screenshots/. artifacts/android-screenshots/
+            trap 'adb logcat -d > artifacts/android-logcat.txt; adb pull /sdcard/Android/data/com.centiox.verdant.driver/files/screenshots/. artifacts/android-screenshots/ || true' EXIT
+            ./gradlew :androidApp:connectedDebugAndroidTest :androidApp:assembleRelease --max-workers=2 --stacktrace
+            adb uninstall com.centiox.verdant
+            adb install androidApp/build/outputs/apk/release/androidApp-release.apk
+            ./gradlew :releaseDriver:connectedDebugAndroidTest --max-workers=2 --stacktrace
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Android-${{ matrix.api }}-UI-Results
           path: |
             androidApp/build/reports/androidTests/
+            releaseDriver/build/reports/androidTests/
             artifacts/android-screenshots/
+            artifacts/android-logcat.txt
       - name: Remove temporary signing material
         if: always()
         run: rm -f .signing/release.p12

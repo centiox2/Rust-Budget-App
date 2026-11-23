@@ -24,7 +24,6 @@ android {
             keyPassword = System.getenv("VERDANT_SIGNING_PASSWORD")
         }
     }
-    testBuildType = "release"
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     buildTypes {
         release {
@@ -32,7 +31,6 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            testProguardFiles("test-proguard-rules.pro")
         }
     }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }

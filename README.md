@@ -35,7 +35,7 @@ Use JDK 17 and Android SDK 36. Open the root folder in Android Studio or Intelli
 ./gradlew :desktopApp:run
 ./gradlew :androidApp:assembleRelease
 ./gradlew :androidApp:lintRelease
-./gradlew :androidApp:connectedReleaseAndroidTest
+./gradlew :androidApp:connectedDebugAndroidTest
 ```
 
 On Windows, use `gradlew.bat`. The Gradle wrapper includes a distribution checksum. Versions are pinned: Kotlin 2.3.10, Compose Multiplatform 1.10.3, Android Gradle Plugin 8.13.2, and Gradle 8.13. The shared module uses the Android-KMP library plugin and the Android launcher is a separate module, following the [KMP module structure](https://kotlinlang.org/docs/multiplatform/multiplatform-project-agp-9-migration.html).
@@ -44,7 +44,7 @@ On Windows, use `gradlew.bat`. The Gradle wrapper includes a distribution checks
 
 GitHub Actions → **Kotlin Multiplatform Release** builds and verifies a release-signed APK and Android App Bundle. Download **Verdant-Kotlin-Release**, extract `Verdant-Budget-Kotlin.apk`, and allow Android to install it when prompted. The artifact also includes a SHA256 checksum.
 
-The workflow runs shared model/repository tests, rendered Compose UI tests at 360/393/430 widths, desktop compilation, Android lint, APK signature verification, and Android API 26, 35, and 36 emulator tests against the optimized release covering onboarding, transactions, budgets, analytics, and activity recreation. Screenshot and test-report artifacts are saved for review.
+The workflow runs shared model/repository tests, rendered Compose UI tests at 360/393/430 widths, desktop compilation, Android lint, APK signature verification, and Android API 26, 35, and 36 emulator tests. In-process debug instrumentation covers storage, native backups, and activity recreation. A separate `releaseDriver` uses UI Automator to control the exact signed, optimized release APK across onboarding, transactions, budgets, analytics, and process restart, without linking its test harness into the app. Screenshots, logcat, and test reports are saved for review.
 
 Release builds use a stable private signing key stored in GitHub Actions encrypted secrets. A previously installed development build may have a different certificate; export a backup before uninstalling it. The Kotlin app uses its own storage file; restore a previous Verdant JSON backup through Settings if migrating from Tauri. Uninstalling removes private device data. Android requires API 26 or newer.
 
