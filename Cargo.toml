@@ -4,3 +4,9 @@ members = ["app", "desktop"]
 
 [profile.release]
 opt-level = 2
+
+# The APK is built from the dev profile (a release build needs a signing
+# keystore), so keep it lean enough to install comfortably.
+[profile.dev]
+debug = false
+opt-level = 1
