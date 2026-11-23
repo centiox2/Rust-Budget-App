@@ -3,6 +3,7 @@ package com.centiox.verdant
 import android.util.AtomicFile
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -31,6 +32,16 @@ class AppFlowTest {
                 }
             )
             .around(compose)
+            .around(
+                object : TestWatcher() {
+                    override fun failed(e: Throwable, description: org.junit.runner.Description) {
+                        runCatching {
+                            screenshot("android-flow-failure.png")
+                            compose.onRoot().printToLog("VerdantFlow")
+                        }
+                    }
+                }
+            )
 
     private fun screenshot(name: String) {
         compose.waitForIdle()
@@ -101,6 +112,8 @@ class AppFlowTest {
         screenshot("android-budgets.png")
         compose.onNodeWithText("Set limits").performClick()
         compose.onNodeWithTag("budget-Groceries").performTextReplacement("100")
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("save-budgets").performScrollTo().performClick()
         compose.waitUntil(10000) {
             compose.onAllNodesWithTag("save-budgets").fetchSemanticsNodes().isEmpty()

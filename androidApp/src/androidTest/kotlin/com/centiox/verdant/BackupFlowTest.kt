@@ -5,8 +5,10 @@ import android.app.Instrumentation.ActivityResult
 import android.content.Intent
 import android.net.Uri
 import android.util.AtomicFile
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.espresso.Espresso
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -84,7 +86,12 @@ class BackupFlowTest {
                 .getOrDefault(false)
         }
         Assert.assertEquals("Backup owner", exported!!.name)
-        compose.onNodeWithText("Reset all data").performScrollTo().performClick()
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText("Reset all data").performScrollTo().performSemanticsAction(
+            SemanticsActions.OnClick
+        ) {
+            it()
+        }
         compose.waitUntil(10000) {
             compose.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()
         }
@@ -93,7 +100,7 @@ class BackupFlowTest {
                 hasText("Reset all data") and hasAnyAncestor(isDialog()),
                 useUnmergedTree = true,
             )
-            .performClick()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000) {
             compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
         }

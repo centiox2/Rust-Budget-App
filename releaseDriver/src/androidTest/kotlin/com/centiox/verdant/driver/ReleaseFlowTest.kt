@@ -69,9 +69,10 @@ class ReleaseFlowTest {
 
     private fun hideKeyboard() {
         device.waitForIdle()
-        val state = device.executeShellCommand("dumpsys input_method")
         if (
-            Regex("(?:mInputShown|mIsInputViewShown|isInputViewShown)=true").containsMatchIn(state)
+            InstrumentationRegistry.getInstrumentation().uiAutomation.windows.any {
+                it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD
+            }
         ) {
             device.pressBack()
             device.waitForIdle()
