@@ -136,4 +136,38 @@ class ModelTest {
         assertEquals(100, repository.data.value.transactions.size)
         assertEquals(10000L, totals(repository.data.value, "2026-11").balance)
     }
+
+    @Test
+    fun exportSnapshotLoadsBeforeReturning() = runTest {
+        val original = sampleData("Restored process", "KES")
+        val storage =
+            object : BudgetStorage {
+                override suspend fun read() = encodeBackup(original)
+
+                override suspend fun write(json: String) {}
+            }
+        val repo = BudgetRepository(storage)
+        assertEquals(original, decodeBackup(repo.snapshot()))
+        assertEquals(original, repo.data.value)
+    }
+
+    @Test
+    fun retriedDraftDoesNotCreateDuplicateMoney() {
+        val entry =
+            Entry(
+                id = "stable-draft",
+                title = "Salary",
+                amount = 50000,
+                type = "income",
+                category = "Other",
+                date = "2026-11-23",
+            )
+        val once = BudgetData().withEntry(entry)
+        val retried = once.withEntry(entry)
+        assertEquals(1, retried.transactions.size)
+        assertEquals(50000L, totals(retried, "2026-11").balance)
+        val edited = retried.withEntry(entry.copy(amount = 60000))
+        assertEquals(1, edited.transactions.size)
+        assertEquals(60000L, totals(edited, "2026-11").balance)
+    }
 }

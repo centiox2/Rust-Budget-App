@@ -62,6 +62,10 @@ class AppFlowTest {
         }
         val initial = totals(sampleData("Alex Morgan", "USD"), currentMonth())
         compose.onNodeWithTag("total-balance").assertTextEquals(money(initial.balance, "USD"))
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+        }
         screenshot("android-home.png")
         compose.onNodeWithContentDescription("Add transaction").performClick()
         compose.onNodeWithTag("entry-amount").performTextInput("2.999")

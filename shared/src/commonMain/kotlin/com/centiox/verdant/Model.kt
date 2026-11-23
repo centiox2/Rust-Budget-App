@@ -12,6 +12,7 @@ import kotlinx.datetime.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 val categories =
@@ -70,6 +71,15 @@ data class Totals(
     val byCategory: Map<String, Long>,
 )
 
+/** A stable entry ID makes a retry after activity recreation idempotent. */
+fun BudgetData.withEntry(entry: Entry): BudgetData =
+    copy(
+        transactions =
+            if (transactions.any { it.id == entry.id })
+                transactions.map { if (it.id == entry.id) entry else it }
+            else transactions + entry
+    )
+
 fun parseAmount(text: String): Long {
     val value = text.trim()
     require(Regex("[0-9]+(\\.[0-9]{1,2})?").matches(value)) {
@@ -116,6 +126,7 @@ fun validate(data: BudgetData): BudgetData {
     data.transactions.forEach {
         require(
             it.id.isNotBlank() &&
+                it.id.length <= 80 &&
                 it.title.trim().isNotEmpty() &&
                 it.title.length <= 100 &&
                 it.amount in 1..MAX_AMOUNT &&
@@ -159,11 +170,23 @@ private val backupJson = Json {
     encodeDefaults = true
 }
 
-fun encodeBackup(data: BudgetData): String = backupJson.encodeToString(validate(data))
+fun encodeBackup(data: BudgetData): String {
+    val text = backupJson.encodeToString(validate(data))
+    require(text.length <= 5_000_000) {
+        "This ledger is too large to save. Export and archive older records first."
+    }
+    return text
+}
 
 fun decodeBackup(raw: String): BudgetData {
     require(raw.length <= 5_000_000) { "Backup is too large." }
-    val fields = backupJson.parseToJsonElement(raw).jsonObject
+    val cleaned = raw.trim().removePrefix("\uFEFF")
+    val fields =
+        try {
+            backupJson.parseToJsonElement(cleaned).jsonObject
+        } catch (_: Exception) {
+            throw IllegalArgumentException("Choose a valid Verdant JSON backup.")
+        }
     require(
         fields.keys.containsAll(
             listOf("version", "name", "currency", "onboarded", "transactions", "budgets")
@@ -171,7 +194,24 @@ fun decodeBackup(raw: String): BudgetData {
     ) {
         "This is not a complete Verdant backup."
     }
-    return validate(backupJson.decodeFromString<BudgetData>(raw))
+    val parsed =
+        try {
+            fields.getValue("transactions").jsonArray.forEach { item ->
+                require(
+                    item.jsonObject.keys.containsAll(
+                        listOf("id", "title", "amount", "type", "category", "date")
+                    )
+                ) {
+                    "Incomplete transaction."
+                }
+            }
+            backupJson.decodeFromString<BudgetData>(cleaned)
+        } catch (_: Exception) {
+            throw IllegalArgumentException(
+                "The backup contains an invalid or incomplete transaction."
+            )
+        }
+    return validate(parsed)
 }
 
 interface BudgetStorage {
@@ -182,17 +222,32 @@ interface BudgetStorage {
 
 class BudgetRepository(private val storage: BudgetStorage) {
     private val mutex = Mutex()
+    private var initialized = false
     private val mutableData = MutableStateFlow(BudgetData())
     val data = mutableData.asStateFlow()
 
     suspend fun load() =
-        mutex.withLock { storage.read()?.let { mutableData.value = decodeBackup(it) } }
+        mutex.withLock {
+            storage.read()?.let { mutableData.value = decodeBackup(it) }
+            initialized = true
+        }
+
+    /** Also safe when an Android document result arrives before the new activity loads its UI. */
+    suspend fun snapshot(): String =
+        mutex.withLock {
+            if (!initialized) {
+                storage.read()?.let { mutableData.value = decodeBackup(it) }
+                initialized = true
+            }
+            encodeBackup(mutableData.value)
+        }
 
     suspend fun update(transform: (BudgetData) -> BudgetData) =
         mutex.withLock {
             val next = validate(transform(mutableData.value))
             storage.write(encodeBackup(next))
             mutableData.value = next
+            initialized = true
         }
 
     suspend fun restore(raw: String) {

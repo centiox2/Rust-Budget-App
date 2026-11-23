@@ -27,6 +27,8 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Prepare private release keystore
         env:
           KEYSTORE: ${{ secrets.VERDANT_SIGNING_KEYSTORE }}
@@ -74,7 +76,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [26, 35]
+        api: [26, 35, 36]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -89,6 +91,8 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
       - name: Prepare private release keystore
         env:
           KEYSTORE: ${{ secrets.VERDANT_SIGNING_KEYSTORE }}
@@ -105,6 +109,7 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api }}
+          target: google_apis
           arch: x86_64
           profile: pixel_6
           disable-animations: true

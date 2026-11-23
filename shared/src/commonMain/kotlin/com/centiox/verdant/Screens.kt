@@ -17,6 +17,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,7 +37,7 @@ enum class Page(val label: String) {
 }
 
 @Composable
-fun WelcomeScreen(onStart: () -> Unit) {
+fun WelcomeScreen(onStart: () -> Unit, onRestore: (() -> Unit)? = null) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val artHeight = (maxHeight * .45f).coerceIn(240.dp, 450.dp)
         val titleSize = if (maxWidth < 370.dp) 29.sp else 32.sp
@@ -73,7 +75,11 @@ fun WelcomeScreen(onStart: () -> Unit) {
             }
             Column {
                 PrimaryButton("Start Now", onStart, Modifier.testTag("start"), glow = true)
-                Spacer(Modifier.height(18.dp))
+                if (onRestore != null)
+                    TextButton(onRestore, Modifier.fillMaxWidth()) {
+                        Text("Restore an existing backup", fontSize = 11.sp, color = Muted)
+                    }
+                Spacer(Modifier.height(12.dp))
                 Text(
                     "PRIVATE BY DESIGN · YOUR DEVICE, YOUR DATA",
                     fontSize = 8.sp,
@@ -97,12 +103,18 @@ fun ChoiceField(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     Column(modifier) {
         Text(label, fontSize = 12.sp, color = Muted)
         Spacer(Modifier.height(7.dp))
         Box {
             OutlinedButton(
-                onClick = { expanded = true },
+                onClick = {
+                    focus.clearFocus()
+                    keyboard?.hide()
+                    expanded = true
+                },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp),
                 shape = RoundedCornerShape(13.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp),
@@ -394,9 +406,10 @@ fun TransactionsScreen(
     onAdd: () -> Unit,
     onEdit: (Entry) -> Unit,
     initialQuery: String = "",
+    initialFilter: String = "all",
 ) {
     var query by rememberSaveable(initialQuery) { mutableStateOf(initialQuery) }
-    var filter by rememberSaveable { mutableStateOf("all") }
+    var filter by rememberSaveable(initialQuery, initialFilter) { mutableStateOf(initialFilter) }
     val rows =
         remember(data.transactions, month, filter, query) {
             data.transactions
@@ -420,7 +433,7 @@ fun TransactionsScreen(
             ) {
                 OutlinedTextField(
                     query,
-                    { query = it },
+                    { query = it.take(200) },
                     placeholder = { Text("Search transactions", fontSize = 12.sp) },
                     leadingIcon = { Icon(Icons.Outlined.Search, null) },
                     singleLine = true,
@@ -811,7 +824,7 @@ fun SettingsScreen(
             }
         }
         Text(
-            "Verdant Budget · 2.0.0\nBuilt with Kotlin Multiplatform\nRoom for what matters.",
+            "Verdant Budget · 2.0.0\nRoom for what matters.",
             fontSize = 10.sp,
             lineHeight = 22.sp,
             color = Muted,

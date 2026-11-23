@@ -1,6 +1,6 @@
 # Android release process
 
-The GitHub workflow builds an optimized, resource-shrunk, signed release APK and Android App Bundle. It verifies the APK signature and includes SHA256 checksums, the public signing certificate, and R8 mapping in the release artifact. Instrumentation runs against the release build on Android API 26 and 35.
+The GitHub workflow builds an optimized, resource-shrunk, signed release APK and Android App Bundle. It verifies the APK signature and includes SHA256 checksums, the public signing certificate, and R8 mapping in the release artifact. Instrumentation runs against the release build on Android API 26, 35, and 36.
 
 ## Signing
 

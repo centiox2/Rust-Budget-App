@@ -34,6 +34,7 @@ fun EntrySheet(
     onSave: suspend (Entry) -> Unit,
     onDelete: () -> Unit,
 ) {
+    val draftId = rememberSaveable(entry?.id) { entry?.id ?: newId() }
     var type by rememberSaveable(entry?.id) { mutableStateOf(entry?.type ?: initialType) }
     var title by rememberSaveable(entry?.id) { mutableStateOf(entry?.title ?: "") }
     var amount by
@@ -150,7 +151,10 @@ fun EntrySheet(
                 placeholder = { Text("YYYY-MM-DD") },
                 singleLine = true,
                 trailingIcon = {
-                    IconButton({ calendar = true }) {
+                    IconButton({
+                        focus.clearFocus()
+                        calendar = true
+                    }) {
                         Icon(Icons.Outlined.CalendarMonth, "Choose date")
                     }
                 },
@@ -175,7 +179,7 @@ fun EntrySheet(
                         try {
                             val next =
                                 Entry(
-                                    entry?.id ?: newId(),
+                                    draftId,
                                     title.trim(),
                                     parseAmount(amount),
                                     type,

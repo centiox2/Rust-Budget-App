@@ -24,6 +24,8 @@ fun App(
     onExport: (String) -> Unit,
     onImport: ((String?) -> Unit) -> Unit,
     backHandler: @Composable (Boolean, () -> Unit) -> Unit = { _, _ -> },
+    externalBackup: String? = null,
+    onExternalBackupConsumed: () -> Unit = {},
 ) = VerdantTheme {
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -43,13 +45,19 @@ fun App(
     var confirm by remember { mutableStateOf<String?>(null) }
     var pendingBackup by remember { mutableStateOf<String?>(null) }
     var query by remember { mutableStateOf("") }
+    var transactionFilter by remember { mutableStateOf("all") }
     fun go(next: Page) {
         focus.clearFocus()
         keyboard?.hide()
-        if (next == Page.Transactions) query = ""
+        if (next == Page.Home) month = currentMonth()
+        if (next == Page.Transactions) {
+            query = ""
+            transactionFilter = "all"
+        }
         pageName = next.name
     }
     fun add(type: String) {
+        if (page == Page.Home) month = currentMonth()
         editingId = null
         initialType = type
         sheet = "entry"
@@ -60,6 +68,8 @@ fun App(
         sheet = "entry"
     }
     fun action(message: String, operation: suspend () -> Unit) {
+        focus.clearFocus()
+        keyboard?.hide()
         scope.launch {
             busy = true
             try {
@@ -76,8 +86,30 @@ fun App(
             }
         }
     }
-    backHandler(ready && data.onboarded && page != Page.Home && sheet == null && confirm == null) {
-        go(Page.Home)
+    backHandler(
+        (ready && !data.onboarded && !welcome) ||
+            (ready && data.onboarded && page != Page.Home && sheet == null && confirm == null)
+    ) {
+        if (!data.onboarded) welcome = true else go(Page.Home)
+    }
+    fun dismissConfirm() {
+        if (confirm == "restore") {
+            pendingBackup = null
+            onExternalBackupConsumed()
+        }
+        confirm = null
+    }
+    LaunchedEffect(externalBackup) {
+        externalBackup?.let { raw ->
+            try {
+                decodeBackup(raw)
+                pendingBackup = raw
+                confirm = "restore"
+            } catch (e: Exception) {
+                onExternalBackupConsumed()
+                snackbar.showSnackbar(e.message ?: "Choose a valid Verdant backup.")
+            }
+        }
     }
     fun importBackup() {
         onImport { raw ->
@@ -98,7 +130,8 @@ fun App(
             repository.load()
             ready = true
         } catch (e: Exception) {
-            loadError = e.message ?: "Could not read saved data."
+            loadError =
+                "The saved ledger could not be opened. It has not been overwritten. Restore a backup, or start a new ledger."
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.TopCenter) {
@@ -148,7 +181,8 @@ fun App(
                         welcome,
                         transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
                     ) { showWelcome ->
-                        if (showWelcome) WelcomeScreen { welcome = false }
+                        if (showWelcome)
+                            WelcomeScreen(onStart = { welcome = false }, onRestore = ::importBackup)
                         else
                             SetupScreen(busy) { name, currency, sample ->
                                 action("Your space is ready.") {
@@ -184,10 +218,13 @@ fun App(
                                         Page.Home ->
                                             HomeScreen(
                                                 data,
-                                                month,
+                                                currentMonth(),
                                                 ::go,
                                                 ::add,
-                                                { sheet = "budget" },
+                                                {
+                                                    month = currentMonth()
+                                                    sheet = "budget"
+                                                },
                                                 ::edit,
                                             )
                                         Page.Transactions ->
@@ -197,6 +234,7 @@ fun App(
                                                 { add("expense") },
                                                 ::edit,
                                                 query,
+                                                transactionFilter,
                                             )
                                         Page.Budgets ->
                                             BudgetsScreen(data, month) { sheet = "budget" }
@@ -207,10 +245,12 @@ fun App(
                                                 ::edit,
                                                 {
                                                     query = ""
+                                                    transactionFilter = "expense"
                                                     pageName = Page.Transactions.name
                                                 },
                                                 {
                                                     query = it
+                                                    transactionFilter = "expense"
                                                     pageName = Page.Transactions.name
                                                 },
                                             )
@@ -297,13 +337,7 @@ fun App(
             month,
             { sheet = null },
             { entry ->
-                repository.update { current ->
-                    current.copy(
-                        transactions =
-                            if (editingId == null) current.transactions + entry
-                            else current.transactions.map { if (it.id == entry.id) entry else it }
-                    )
-                }
+                repository.update { current -> current.withEntry(entry) }
                 scope.launch {
                     snackbar.showSnackbar(
                         if (editingId == null) "Transaction added." else "Transaction updated."
@@ -324,7 +358,7 @@ fun App(
         )
     if (confirm != null)
         AlertDialog(
-            onDismissRequest = { if (!busy) confirm = null },
+            onDismissRequest = { if (!busy) dismissConfirm() },
             title = {
                 Text(
                     when (confirm) {
@@ -345,7 +379,9 @@ fun App(
                     }
                 )
             },
-            dismissButton = { TextButton({ confirm = null }, enabled = !busy) { Text("Cancel") } },
+            dismissButton = {
+                TextButton({ dismissConfirm() }, enabled = !busy) { Text("Cancel") }
+            },
             confirmButton = {
                 TextButton(
                     {
@@ -372,6 +408,10 @@ fun App(
                                         pendingBackup ?: error("Select a backup again.")
                                     )
                                 else -> repository.update { BudgetData() }
+                            }
+                            if (selected == "restore") {
+                                pendingBackup = null
+                                onExternalBackupConsumed()
                             }
                             confirm = null
                             sheet = null
