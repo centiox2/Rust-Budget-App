@@ -21,6 +21,8 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools build-tools;35.0.0 platforms;android-35"
 
       - name: Set up Android NDK
         id: ndk
@@ -43,6 +45,7 @@ jobs:
       - name: Build the APK
         env:
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
         run: cargo apk build --release
 
       - name: Show what was built
