@@ -1,65 +1,59 @@
 name: Android APK
-
 on:
   push:
-    branches: [main]
+    branches: [main, 'rebuild/**']
   pull_request:
   workflow_dispatch:
-
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  apk:
-    name: Build APK
-    runs-on: ubuntu-latest
+  android:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          packages: "platform-tools build-tools;35.0.0 build-tools;30.0.3 platforms;android-35 platforms;android-30"
-
-      - name: Set up Android NDK
-        id: ndk
-        uses: nttld/setup-ndk@v1
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+      - uses: Swatinem/rust-cache@v2
         with:
-          ndk-version: r27
-          add-to-path: false
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+          workspaces: src-tauri -> target
+      - name: Install Linux prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Rust checks
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: Generate fresh Android project
+        run: npm run tauri -- android init --ci
+      - name: Build installable APK
+        run: npm run tauri -- android build --debug --apk --target aarch64 armv7 --ci
+      - name: Stage APK and checksum
+        run: |
+          mkdir -p artifacts
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/debug/*.apk artifacts/Verdant-Budget-android.apk
+          cd artifacts
+          sha256sum Verdant-Budget-android.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install cargo-apk
-        run: cargo install cargo-apk --locked
-
-      # A release build needs a keystore configured in Cargo.toml, so this
-      # produces the debug-signed APK, which installs on any device.
-      - name: Build the APK
-        working-directory: app
-        env:
-          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.ndk.outputs.ndk-path }}
-        run: cargo apk build
-
-      - name: Show what was built
-        run: find . -name "*.apk" -exec ls -lh {} \;
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: budget-apk
-          path: "**/target/*/apk/*.apk"
+          name: Verdant-Budget-Android
+          path: artifacts/*
           if-no-files-found: error
-
-      - name: Type-check the UI
-        run: cargo check -p budget-app --lib
+          retention-days: 30
