@@ -132,6 +132,8 @@ class ReleaseFlowTest {
         val purchase =
             node(By.textContains("Release verification purchase").clazz("android.widget.TextView"))
         purchase.click()
+        node(By.text("Edit transaction"))
+        hideKeyboard()
         scrollClick(By.text("Delete transaction"))
         click(By.text("Delete"))
         assertTrue(device.wait(Until.gone(By.text("Edit transaction")), 20_000))

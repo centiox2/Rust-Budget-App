@@ -96,14 +96,15 @@ class BackupFlowTest {
             compose.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()
         }
         compose
-            .onNode(
-                hasText("Reset all data") and hasAnyAncestor(isDialog()),
-            )
+            .onNode(hasText("Reset all data") and hasAnyAncestor(isDialog()))
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000) {
             compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Restore an existing backup").performScrollTo().performClick()
+        compose
+            .onNodeWithText("Restore an existing backup")
+            .performScrollTo()
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(15000) {
             compose.onAllNodesWithText("Restore your backup?").fetchSemanticsNodes().isNotEmpty()
         }
