@@ -38,6 +38,8 @@ kotlin {
 }
 compose.resources { packageOfResClass = "com.centiox.verdant.resources"; publicResClass = true }
 tasks.withType<Test>().configureEach {
+    timeout.set(java.time.Duration.ofMinutes(6))
+    testLogging { events("started", "passed", "failed", "skipped") }
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
     val screenshots = rootProject.layout.buildDirectory.dir("ui-screenshots").get().asFile

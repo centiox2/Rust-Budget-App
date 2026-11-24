@@ -17,6 +17,8 @@ import org.jetbrains.skia.EncodedImageFormat
 
 @OptIn(ExperimentalTestApi::class)
 class UiTest {
+    @get:org.junit.Rule val timeout: org.junit.rules.Timeout = org.junit.rules.Timeout.seconds(120)
+
     private fun storage(initial: BudgetData? = null) =
         object : BudgetStorage {
             var text = initial?.let(::encodeBackup)
