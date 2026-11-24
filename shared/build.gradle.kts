@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.time.Duration
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")
@@ -38,7 +39,7 @@ kotlin {
 }
 compose.resources { packageOfResClass = "com.centiox.verdant.resources"; publicResClass = true }
 tasks.withType<Test>().configureEach {
-    timeout.set(java.time.Duration.ofMinutes(6))
+    timeout.set(Duration.ofMinutes(6))
     testLogging { events("started", "passed", "failed", "skipped") }
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
