@@ -39,6 +39,16 @@ class ReleaseFlowTest {
         device.waitForIdle()
     }
 
+    private fun navigate(selector: BySelector, destination: BySelector) {
+        // Dialog teardown and navigation can occupy adjacent frames on API 26.
+        // These navigation targets are idempotent; verify the destination, not just idle events.
+        repeat(3) {
+            click(selector)
+            if (device.wait(Until.hasObject(destination), 3_000)) return
+        }
+        error("Navigation did not reach $destination")
+    }
+
     private fun scrollClick(selector: BySelector) {
         repeat(7) {
             // A page transition may not emit accessibility events on older Android versions.
@@ -121,27 +131,27 @@ class ReleaseFlowTest {
             balance.subtract(BigDecimal("49.99")),
             amount(node(By.res("total-balance")).text),
         )
-        click(By.desc("Analytics"))
+        navigate(By.desc("Analytics"), By.text("Spending Overview"))
         node(By.text("Spending Overview"))
         screenshot("android-release-analytics.png")
-        click(By.desc("Budgets"))
+        navigate(By.desc("Budgets"), By.text("Your categories"))
         node(By.text("Your categories"))
         screenshot("android-release-budgets.png")
-        click(By.desc("Transactions"))
+        navigate(By.desc("Transactions"), By.res("transaction-search"))
         node(By.res("transaction-search")).text = "Release verification purchase"
         hideKeyboard()
         // The result row is a separate node from the search input.
-        val purchase =
-            node(By.textContains("Release verification purchase").clazz("android.widget.TextView"))
-        purchase.click()
-        node(By.text("Edit transaction"))
+        navigate(
+            By.textContains("Release verification purchase").clazz("android.widget.TextView"),
+            By.text("Edit transaction"),
+        )
         hideKeyboard()
         scrollClick(By.text("Delete transaction"))
         click(By.text("Delete"))
         assertTrue(device.wait(Until.gone(By.text("Edit transaction")), 20_000))
-        click(By.desc("Home"))
+        navigate(By.desc("Home"), By.res("total-balance"))
         assertEquals(balance, amount(node(By.res("total-balance")).text))
-        click(By.desc("Settings"))
+        navigate(By.desc("Settings"), By.text("Make it yours."))
         node(By.text("Make it yours."))
         scrollClick(By.desc("Ocean background"))
         node(By.text("#268CBA"))
@@ -149,7 +159,7 @@ class ReleaseFlowTest {
         assertTrue(device.wait(Until.hasObject(By.res("background-motion").checked(false)), 15_000))
         device.executeShellCommand("am force-stop $app")
         launch()
-        click(By.desc("Settings"))
+        navigate(By.desc("Settings"), By.text("Make it yours."))
         node(By.text("#268CBA"))
         assertTrue(device.wait(Until.hasObject(By.res("background-motion").checked(false)), 15_000))
         screenshot("android-release-appearance.png")

@@ -122,9 +122,16 @@ class AppFlowTest {
         compose.onNodeWithContentDescription("Add transaction").performClick()
         compose.onNodeWithTag("entry-amount").performTextInput("2.999")
         compose.onNodeWithTag("entry-title").performTextInput("Native test purchase")
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("save-entry").performScrollTo().performClick()
+        compose.waitUntil(10000) {
+            compose.onAllNodesWithTag("form-error").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithTag("form-error").assertTextContains("2 decimal", substring = true)
         compose.onNodeWithTag("entry-amount").performTextReplacement("49.99")
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("save-entry").performScrollTo().performClick()
         compose.waitUntil(10000) {
             compose.onAllNodesWithTag("save-entry").fetchSemanticsNodes().isEmpty()
