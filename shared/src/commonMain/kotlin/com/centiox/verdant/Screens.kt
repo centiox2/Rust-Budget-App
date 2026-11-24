@@ -269,96 +269,106 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .testTag("home-screen")
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            AppHeader(Page.Home, data, onPage)
-            Column(
-                Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text("Total Balance", fontSize = 16.sp, color = Color(0xFFDCE3D5))
-                Spacer(Modifier.height(7.dp))
-                BasicText(
-                    money(totals.balance, data.currency),
-                    style =
-                        LocalTextStyle.current.copy(
-                            fontSize = 37.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.SemiBold,
-                            letterSpacing = (-1.2).sp,
-                            textAlign = TextAlign.Center,
-                        ),
-                    autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 37.sp),
-                    modifier =
-                        Modifier.fillMaxWidth()
-                            .padding(horizontal = 18.dp)
-                            .testTag("total-balance")
-                            .semantics { liveRegion = LiveRegionMode.Polite },
-                    maxLines = 1,
-                )
-                Spacer(Modifier.height(10.dp))
-                val net = totals.income - totals.spent
-                Row(
-                    Modifier.widthIn(max = 320.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color.White.copy(alpha = .05f))
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+        ) {
+            LiquidBackground(
+                data.backgroundColor,
+                data.animateBackground,
+                Modifier.matchParentSize(),
+            )
+            Column(Modifier.fillMaxWidth()) {
+                AppHeader(Page.Home, data, onPage)
+                Column(
+                    Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        if (net < 0) Icons.Outlined.SouthWest else Icons.Outlined.NorthEast,
-                        null,
-                        Modifier.size(15.dp),
-                        if (net < 0) Orange else Lime,
+                    Text("Total Balance", fontSize = 16.sp, color = Color(0xFFDCE3D5))
+                    Spacer(Modifier.height(7.dp))
+                    BasicText(
+                        money(totals.balance, data.currency),
+                        style =
+                            LocalTextStyle.current.copy(
+                                fontSize = 37.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = (-1.2).sp,
+                                textAlign = TextAlign.Center,
+                            ),
+                        autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 37.sp),
+                        modifier =
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 18.dp)
+                                .testTag("total-balance")
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                        maxLines = 1,
                     )
-                    Text(
-                        if (totals.income == 0L && totals.spent == 0L) "No activity this month"
-                        else if (net == 0L) "Income matches spending"
-                        else "${if (net > 0) "+" else ""}${money(net, data.currency)} this month",
-                        Modifier.weight(1f, fill = false).testTag("monthly-cashflow"),
-                        fontSize = 12.sp,
-                        color = if (net < 0) Orange else Color(0xFFE0E8DA),
-                        maxLines = 2,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-                Spacer(Modifier.height(18.dp))
-                FlowRow(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                    maxItemsInEachRow = if (fontScale >= 1.6f) 2 else 4,
-                ) {
-                    listOf(
-                            Triple(Icons.Outlined.Payments, "Income", { onAdd("income") }),
-                            Triple(Icons.Outlined.ShoppingBag, "Expense", { onAdd("expense") }),
-                            Triple(Icons.Outlined.ReceiptLong, "Budget", onBudget),
-                            Triple(Icons.Outlined.GridView, "More", { onPage(Page.Settings) }),
+                    Spacer(Modifier.height(10.dp))
+                    val net = totals.income - totals.spent
+                    Row(
+                        Modifier.widthIn(max = 320.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.White.copy(alpha = .05f))
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(
+                            if (net < 0) Icons.Outlined.SouthWest else Icons.Outlined.NorthEast,
+                            null,
+                            Modifier.size(15.dp),
+                            if (net < 0) Orange else Lime,
                         )
-                        .forEach { (icon, label, action) ->
-                            val description =
-                                if (label == "Expense") "Add transaction"
-                                else if (label == "Budget") "Set a budget" else label
-                            Column(
-                                Modifier.weight(1f)
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .clickable(role = Role.Button, onClick = action)
-                                    .semantics { contentDescription = description }
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                Box(
-                                    Modifier.size(52.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = .07f)),
-                                    contentAlignment = Alignment.Center,
+                        Text(
+                            if (totals.income == 0L && totals.spent == 0L) "No activity this month"
+                            else if (net == 0L) "Income matches spending"
+                            else
+                                "${if (net > 0) "+" else ""}${money(net, data.currency)} this month",
+                            Modifier.weight(1f, fill = false).testTag("monthly-cashflow"),
+                            fontSize = 12.sp,
+                            color = if (net < 0) Orange else Color(0xFFE0E8DA),
+                            maxLines = 2,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    Spacer(Modifier.height(18.dp))
+                    FlowRow(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        maxItemsInEachRow = if (fontScale >= 1.6f) 2 else 4,
+                    ) {
+                        listOf(
+                                Triple(Icons.Outlined.Payments, "Income", { onAdd("income") }),
+                                Triple(Icons.Outlined.ShoppingBag, "Expense", { onAdd("expense") }),
+                                Triple(Icons.Outlined.ReceiptLong, "Budget", onBudget),
+                                Triple(Icons.Outlined.GridView, "More", { onPage(Page.Settings) }),
+                            )
+                            .forEach { (icon, label, action) ->
+                                val description =
+                                    if (label == "Expense") "Add transaction"
+                                    else if (label == "Budget") "Set a budget" else label
+                                Column(
+                                    Modifier.weight(1f)
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .clickable(role = Role.Button, onClick = action)
+                                        .semantics { contentDescription = description }
+                                        .padding(vertical = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    Icon(icon, null, Modifier.size(23.dp), Color(0xFFE3EDDD))
+                                    Box(
+                                        Modifier.size(52.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White.copy(alpha = .07f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(icon, null, Modifier.size(23.dp), Color(0xFFE3EDDD))
+                                    }
+                                    Text(label, fontSize = 12.sp, maxLines = 1)
                                 }
-                                Text(label, fontSize = 12.sp, maxLines = 1)
                             }
-                        }
+                    }
                 }
             }
         }

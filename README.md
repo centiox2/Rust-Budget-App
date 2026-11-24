@@ -2,7 +2,7 @@
 
 A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
 
-The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Home uses a solid near-black background with transactions displayed directly on the page. Other screens use an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
+The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Home keeps the liquid backdrop in its balance header; transactions appear directly on a solid near-black surface below it. Other screens use an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
 
 ## Features
 
