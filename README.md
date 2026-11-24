@@ -1,72 +1,63 @@
-# Amara — a budgeting app for Android
+# Verdant Budget — Kotlin Multiplatform
 
-A dark, purple-and-lime budgeting app written entirely in Rust and drawn with
-[egui](https://github.com/emilk/egui). There is no web view, no JavaScript and
-no platform UI toolkit: every pixel is painted by Rust.
+A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
 
-## Screens
+The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and clear financial summaries. All pages share Home's visual structure: a restrained liquid header above solid near-black content. Activity uses open transaction rows, Budgets uses category progress rows, Insights has a single spending chart and category breakdown, and Settings uses flat sections. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
 
-| Screen | What it does |
+## Features
+
+- Income, expenses, split categories, notes, cleared status, duplicate entries, templates, calculator, date shortcuts, and resumable drafts.
+- Cash, M-Pesa, bank, and savings accounts with opening balances, transfers, archive, and reconciliation.
+- M-Pesa fee estimates and actual overrides, with confirmed versus estimated costs by transaction type and amount band. Fees count once in spending; withdrawal principal remains a transfer. See [fee reference and limitations](docs/mpesa-fees.md).
+- Custom category names/icons/order, archive, and history-safe renaming.
+- Monthly, weekly, and payday budgets, optional rollover, threshold alerts, and prior-month copy.
+- Recurring expenses/income, due agenda, expected fees, mark paid/received, and optional Android reminders.
+- Savings goals, deadlines, and contributions; goal tracking does not invent expenses or account movements.
+- Search and date/amount/type/category/account/cleared filters, sorting, bulk recategorize/delete, undo, and recently deleted recovery (up to 200 records for 30 days).
+- Monthly spending charts, category drilldown, period comparisons, net cash flow, next scheduled commitments, and a real alerts inbox.
+- Full CSV export/import with mapping, preview, row errors, duplicate detection, and spreadsheet formula protection.
+- Validated JSON and password-protected portable backups with restore preview and backup reminders. Schema 1 backups migrate to schema 2.
+- Android Keystore encryption, optional biometric/device credential lock with background relock, hidden balances, and a private quick-entry widget.
+- App-wide accent presets/custom RGB/hex colors, fixed red expense/green income indicators, reduced motion, optional haptics, and preserved page/scroll state.
+- USD, KES, EUR, GBP, and INR display currencies. Changing currency does not convert existing amounts.
+- Optional sample data and compatibility with prior Verdant Rust/Tauri JSON backups.
+
+Page transitions, selection colors, button presses, chart reveals, progress bars, and toast messages use restrained animations. Scroll tests cover all pages at 360 × 760 with normal and 1.4× text, a 1,000-entry history, end-of-page reachability above navigation, and native keyboard/profile flows.
+
+See [custom interface](docs/design-system.md) and [liquid background](docs/liquid-background.md) implementation notes.
+
+## Project structure
+
+| Module | Responsibility |
 | --- | --- |
-| **Home** | Safe-to-spend for the month, week-over-week change, quick actions, this month's envelope with a progress bar, and the three latest purchases. |
-| **Budgets** | Every envelope with its own budget, spend and percentage. Over-budget envelopes turn coral. |
-| **Insights** | Daily / weekly / monthly totals, a bar chart of the current week, and a breakdown of where the money went. |
-| **All spending** | Every logged spending, grouped by day. |
-| **Profile** | Name, currency, the month at a glance, and a reset back to the demo data. |
-| **Sheets** | **New expense** (amount, category chips, note) and **New category** (name, monthly budget, colour and icon). |
+| `shared` | Kotlin Multiplatform Android library + desktop JVM target; shared Compose UI, model, calculations, serialization, repository, common tests, and rendered UI tests |
+| `androidApp` | Android launcher, lifecycle, atomic private storage, native document pickers, and instrumented UI tests |
+| `desktopApp` | Desktop JVM launcher, local storage, and native file dialogs |
 
-Data is a single JSON file, written after every change. On Android it lives in
-the app's internal storage; on the desktop it is `%APPDATA%/Amara Budget` on
-Windows or `~/.amara-budget` elsewhere. `BUDGET_DATA_DIR` overrides the path.
+Android and desktop are implemented targets. iOS is not included in this build.
 
-## Building the APK
+## Build and run
 
-The APK is built by GitHub Actions — see
-[`.github/workflows/android.yml`](.github/workflows/android.yml). Every push to
-`main` (or a manual "Run workflow") produces an installable artifact:
-
-1. Open the **Actions** tab of the repository.
-2. Pick the latest green **Android APK** run.
-3. Download the **budget-apk** artifact and install `amara-budget.apk`.
-
-The workflow installs the Android SDK, NDK r27 and the Rust Android targets,
-then runs `cargo apk build` in `app/` for `aarch64-linux-android`,
-`armv7-linux-androideabi` and `x86_64-linux-android`. The package is
-debug-signed, so it installs on any phone or emulator without extra setup; a
-release build needs a keystore in `[package.metadata.android.signing.release]`.
-
-To build locally with the same toolchain you need the Android SDK, the NDK, a
-JDK, and:
+Use JDK 17 and Android SDK 36. Open the root folder in Android Studio or IntelliJ IDEA with Kotlin Multiplatform support. Set the Android SDK path in `local.properties` when building locally.
 
 ```sh
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-cargo install cargo-apk
-cd app
-ANDROID_NDK_HOME=/path/to/ndk cargo apk build
+./gradlew :shared:desktopTest
+./gradlew :desktopApp:run
+./gradlew :androidApp:assembleRelease
+./gradlew :androidApp:lintRelease
+./gradlew :androidApp:connectedDebugAndroidTest
 ```
 
-## Running on the desktop
+On Windows, use `gradlew.bat`. The Gradle wrapper includes a distribution checksum. Versions are pinned: Kotlin 2.3.10, Compose Multiplatform 1.10.3, Android Gradle Plugin 8.13.2, and Gradle 8.13. The shared module uses the Android-KMP library plugin and the Android launcher is a separate module, following the [KMP module structure](https://kotlinlang.org/docs/multiplatform/multiplatform-project-agp-9-migration.html).
 
-```sh
-cargo run -p budget-desktop
-```
+## APK and validation
 
-The desktop build is the same code as the phone build and is the quickest way
-to work on the interface.
+GitHub Actions → **Kotlin Multiplatform Release** builds and verifies a release-signed APK and Android App Bundle. Download **Verdant-Kotlin-Release**, extract `Verdant-Budget-Kotlin.apk`, and allow Android to install it when prompted. The artifact also includes a SHA256 checksum.
 
-## Layout
+The workflow runs shared model/repository tests, rendered Compose UI tests at 360/393/430 widths, desktop compilation, Android lint, APK signature verification, and Android API 26, 35, and 36 emulator tests. In-process debug instrumentation covers storage, native backups, and activity recreation. A separate `releaseDriver` uses UI Automator to control the exact signed, optimized release APK across onboarding, transactions, budgets, analytics, and process restart, without linking its test harness into the app. Screenshots, logcat, and test reports are saved for review.
 
-```
-app/       the app itself: cdylib + lib, and the cargo apk metadata
-desktop/   a thin binary that runs the app in a window
-```
+Release builds use a stable private signing key stored in GitHub Actions encrypted secrets. A previously installed development build may have a different certificate; export a backup before uninstalling it. The Kotlin app uses its own storage file; restore a previous Verdant JSON backup through Settings if migrating from Tauri. Uninstalling removes private device data. Android requires API 26 or newer.
 
-- `app/src/app.rs` — app state, bottom navigation, sheet and toast hosting.
-- `app/src/screens/` — one file per screen.
-- `app/src/sheets.rs` — the two bottom sheets.
-- `app/src/widgets.rs`, `app/src/icons.rs` — painted primitives and a
-  hand-drawn vector icon set (no icon font, no images).
-- `app/src/theme.rs` — palette, bundled Inter typefaces, egui style.
-- `app/src/model.rs`, `store.rs`, `seed.rs` — data, JSON persistence and the
-  demo workspace.
-- `app/assets/fonts/` — Inter and Inter Display, bundled into the binary.
+The app requests no internet permission, and all fonts and artwork are bundled. See [artwork and font credits](docs/artwork.md).
+
+See [release and signing instructions](docs/releasing.md) and [privacy and local data](docs/privacy.md). APK/AAB creation does not automatically publish the app to Google Play.
