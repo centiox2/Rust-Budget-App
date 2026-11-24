@@ -95,7 +95,7 @@ class UiTest {
             onNodeWithContentDescription("Settings").performClick()
             mainClock.advanceTimeByFrame()
             val start = motionFrame("motion-page-start.png")
-            mainClock.advanceTimeBy(96)
+            mainClock.advanceTimeBy(160)
             val middle = motionFrame("motion-page-middle.png")
             mainClock.advanceTimeBy(600)
             val end = motionFrame("motion-page-settled.png")

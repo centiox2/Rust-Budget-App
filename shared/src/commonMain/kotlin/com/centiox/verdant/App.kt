@@ -240,10 +240,14 @@ fun App(
                             transitionSpec = {
                                 val direction =
                                     if (targetState.ordinal >= initialState.ordinal) 1 else -1
-                                (fadeIn(tween(220)) +
-                                    slideInHorizontally(tween(220)) { direction * 16 }) togetherWith
-                                    (fadeOut(tween(140)) +
-                                        slideOutHorizontally(tween(180)) { -direction * 10 })
+                                // Clear outgoing text before revealing the new page. Overlapping
+                                // translucent text makes an otherwise subtle transition look muddy.
+                                (fadeIn(tween(180, delayMillis = 90)) +
+                                    slideInHorizontally(tween(240, delayMillis = 70)) {
+                                        direction * 16
+                                    }) togetherWith
+                                    (fadeOut(tween(90)) +
+                                        slideOutHorizontally(tween(140)) { -direction * 10 })
                             },
                             label = "page",
                         ) { selected ->
