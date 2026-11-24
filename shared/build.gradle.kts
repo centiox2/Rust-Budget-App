@@ -19,7 +19,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
-            implementation(compose.foundation)
+            api(compose.foundation)
             implementation(compose.components.resources)
             api("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
@@ -29,6 +29,7 @@ kotlin {
             implementation(kotlin("test"))
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
         }
+        val desktopMain by getting { dependencies { implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2") } }
         val desktopTest by getting {
             dependencies {
                 implementation("org.jetbrains.compose.ui:ui-test:1.10.3")
@@ -40,7 +41,7 @@ kotlin {
 compose.resources { packageOfResClass = "com.centiox.verdant.resources"; publicResClass = true }
 tasks.withType<Test>().configureEach {
     timeout.set(Duration.ofMinutes(6))
-    testLogging { events("started", "passed", "failed", "skipped") }
+    testLogging { events("started", "passed", "failed", "skipped"); showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
     systemProperty("java.awt.headless", "true")
     systemProperty("skiko.renderApi", "SOFTWARE")
     val screenshots = rootProject.layout.buildDirectory.dir("ui-screenshots").get().asFile

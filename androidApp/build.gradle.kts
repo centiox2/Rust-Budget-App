@@ -10,8 +10,8 @@ android {
         applicationId = "com.centiox.verdant"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "2.2.0"
+        versionCode = 5
+        versionName = "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures { compose = true }
@@ -38,6 +38,9 @@ android {
 kotlin { compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
 dependencies {
     implementation(project(":shared"))
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")

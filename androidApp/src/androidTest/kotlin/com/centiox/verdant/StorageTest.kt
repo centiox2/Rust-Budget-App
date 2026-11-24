@@ -23,6 +23,30 @@ class StorageTest {
     }
 
     @Test
+    fun portableBackupAndEncryptedStagingSurviveNewStorageInstances() = runBlocking {
+        val data = sampleData("Portable private ledger", "KES")
+        val password = "a long portable password"
+        val payload = protectBackup(encodeBackup(data), password)
+        val staging = AndroidBudgetStorage(app, "test-export.vdb", false)
+        try {
+            staging.write(payload)
+            val disk = File(app.filesDir, "test-export.vdb").readBytes()
+            Assert.assertFalse(String(disk, Charsets.UTF_8).contains("Portable private ledger"))
+            val recovered = AndroidBudgetStorage(app, "test-export.vdb", false).read()!!
+            Assert.assertEquals(data, decodeBackup(unprotectBackup(recovered, password)))
+            var rejected = false
+            try {
+                unprotectBackup(recovered, "wrong password")
+            } catch (_: Exception) {
+                rejected = true
+            }
+            Assert.assertTrue("Wrong passwords must not decrypt financial records", rejected)
+        } finally {
+            staging.delete()
+        }
+    }
+
+    @Test
     fun encryptedRoundTripAndTamperDetection() = runBlocking {
         val store = AndroidBudgetStorage(app)
         val json = encodeBackup(sampleData("Private ledger", "USD"))

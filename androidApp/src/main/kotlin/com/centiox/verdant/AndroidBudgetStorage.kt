@@ -14,8 +14,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /** Authenticated encryption at rest; the encryption key never leaves Android Keystore. */
-class AndroidBudgetStorage(app: Application) : BudgetStorage {
-    private val file = AtomicFile(File(app.filesDir, "verdant-budget.vdb"))
+class AndroidBudgetStorage(
+    app: Application,
+    fileName: String = "verdant-budget.vdb",
+    private val migrateLegacy: Boolean = true,
+) : BudgetStorage {
+    private val file = AtomicFile(File(app.filesDir, fileName))
     private val legacy = AtomicFile(File(app.filesDir, "verdant-budget.json"))
     private val magic = byteArrayOf(0x56, 0x44, 0x42, 0x32) // VDB2 storage envelope
 
@@ -57,7 +61,10 @@ class AndroidBudgetStorage(app: Application) : BudgetStorage {
                 )
                 cipher.updateAAD(magic)
                 String(cipher.doFinal(bytes.copyOfRange(16, bytes.size)), Charsets.UTF_8)
-            } else if (legacy.baseFile.exists() || File(legacy.baseFile.path + ".bak").exists()) {
+            } else if (
+                migrateLegacy &&
+                    (legacy.baseFile.exists() || File(legacy.baseFile.path + ".bak").exists())
+            ) {
                 require(legacy.baseFile.length() <= 20_000_000) { "Saved ledger is too large." }
                 val json = legacy.openRead().bufferedReader().use { it.readText() }
                 // Validate before migration; retain the old file if the encrypted write fails.
@@ -83,4 +90,6 @@ class AndroidBudgetStorage(app: Application) : BudgetStorage {
                 throw e
             }
         }
+
+    suspend fun delete() = withContext(Dispatchers.IO) { file.delete() }
 }

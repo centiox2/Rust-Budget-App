@@ -25,4 +25,4 @@ Increment `versionCode` and update `versionName` in `androidApp/build.gradle.kts
 
 The APK supports direct installation. The AAB is the artifact for Play Console. Publishing to Google Play additionally requires the owner's Play Console account, Play App Signing configuration, store listing, publicly hosted privacy policy/contact details, declarations, and store review. This workflow builds artifacts and tests them; it does not publish to a store automatically.
 
-The version-1 JSON backup schema remains compatible with previous Verdant backups. Android migrates the earlier Kotlin plaintext ledger to encrypted storage only after validation and a successful encrypted write. Tauri backups can be restored through Settings.
+Version 3.0.0 writes schema 2, preserving accounts, splits, fees, planning records, drafts, and preferences. Version-1 Verdant backups still import and migrate to schema 2. Older app versions cannot restore schema-2 backups. Android migrates the earlier Kotlin plaintext ledger to encrypted storage only after validation and a successful encrypted write. Tauri backups can be restored through Settings.

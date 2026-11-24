@@ -6,17 +6,21 @@ The visual direction follows the supplied reference with dark surfaces, forest-g
 
 ## Features
 
-- Income and expense creation, editing, deletion, categories, and dates.
-- Lifetime balance and truthful monthly cash flow, clearable search, exact category filters, preserved navigation state, and a quick return to the current month.
-- Monthly category budgets, copying last month's limits into an unplanned month, and over-budget indicators.
-- Daily spending charts, category breakdowns, income/spending ratios, and net cash flow.
-- USD, KES, EUR, GBP, and INR. Currency selection changes the display symbol without converting amounts.
-- Local storage with atomic writes and Keystore-backed encryption on Android. Failed writes leave the active ledger unchanged.
-- Native JSON backup export and restore with validation and confirmation before replacement.
-- Backup compatibility with the previous Verdant Rust/Tauri implementation.
-- Optional sample data, kept separate from a new empty ledger.
-- Comma or dot decimal keyboard input, large-text layouts, adaptive money labels, and retry-safe forms that preserve drafts on failed writes.
-- Home action tiles are fully tappable, and its budget action and transaction link always open the current month. Home has no promotional banner or outer transaction card.
+- Income, expenses, split categories, notes, cleared status, duplicate entries, templates, calculator, date shortcuts, and resumable drafts.
+- Cash, M-Pesa, bank, and savings accounts with opening balances, transfers, archive, and reconciliation.
+- M-Pesa fee estimates and actual overrides, with confirmed versus estimated costs by transaction type and amount band. Fees count once in spending; withdrawal principal remains a transfer. See [fee reference and limitations](docs/mpesa-fees.md).
+- Custom category names/icons/order, archive, and history-safe renaming.
+- Monthly, weekly, and payday budgets, optional rollover, threshold alerts, and prior-month copy.
+- Recurring expenses/income, due agenda, expected fees, mark paid/received, and optional Android reminders.
+- Savings goals, deadlines, and contributions; goal tracking does not invent expenses or account movements.
+- Search and date/amount/type/category/account/cleared filters, sorting, bulk recategorize/delete, undo, and recently deleted recovery (up to 200 records for 30 days).
+- Monthly spending charts, category drilldown, period comparisons, net cash flow, next scheduled commitments, and a real alerts inbox.
+- Full CSV export/import with mapping, preview, row errors, duplicate detection, and spreadsheet formula protection.
+- Validated JSON and password-protected portable backups with restore preview and backup reminders. Schema 1 backups migrate to schema 2.
+- Android Keystore encryption, optional biometric/device credential lock with background relock, hidden balances, and a private quick-entry widget.
+- App-wide accent presets/custom RGB/hex colors, fixed red expense/green income indicators, reduced motion, optional haptics, and preserved page/scroll state.
+- USD, KES, EUR, GBP, and INR display currencies. Changing currency does not convert existing amounts.
+- Optional sample data and compatibility with prior Verdant Rust/Tauri JSON backups.
 
 Page transitions, selection colors, button presses, chart reveals, progress bars, and toast messages use restrained animations. Scroll tests cover all pages at 360 × 760 with normal and 1.4× text, a 1,000-entry history, end-of-page reachability above navigation, and native keyboard/profile flows.
 

@@ -1,5 +1,6 @@
 package com.centiox.verdant
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -28,33 +29,66 @@ import kotlinx.datetime.plus
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.painterResource
 
-val Lime = Color(0xFF9BD16B)
+val IncomeGreen = Color(0xFF7DD994)
+val ExpenseRed = Color(0xFFF18484)
+val LocalAccent = staticCompositionLocalOf { Color(0xFF9BD16B) }
+val LocalLedger = staticCompositionLocalOf { BudgetData() }
+val LocalReducedMotion = staticCompositionLocalOf { false }
+val LocalHaptic = staticCompositionLocalOf<() -> Unit> { {} }
+val Lime: Color
+    @Composable get() = LocalAccent.current
+
+fun themeAccent(hex: String): Color {
+    var color = backgroundColor(hex)
+    while (color.luminance() < .32f) color = lerp(color, Color.White, .08f)
+    return color
+}
+
 val Muted = Color(0xFFAEB6A7)
 val Card = Color(0xFF191A18)
-val HomeBackground = Color(0xFF0D110D)
+val HomeBackground: Color
+    @Composable get() = lerp(Color(0xFF0A0D0B), LocalAccent.current, .025f)
 val Line = Color(0xFF2B2D29)
 val Orange = Color(0xFFDC994A)
 
 @Composable
-fun VerdantTheme(content: @Composable () -> Unit) {
+fun VerdantTheme(
+    data: BudgetData = BudgetData(),
+    haptic: () -> Unit = {},
+    content: @Composable () -> Unit,
+) {
     val family =
         FontFamily(
             Font(Res.font.poppins_regular, FontWeight.Normal),
             Font(Res.font.poppins_semibold, FontWeight.SemiBold),
         )
+    val accent by
+        animateColorAsState(
+            themeAccent(data.backgroundColor),
+            tween(if (data.reducedMotion) 0 else 350),
+            label = "App palette",
+        )
     CompositionLocalProvider(
+        LocalAccent provides accent,
+        LocalLedger provides data,
+        LocalReducedMotion provides data.reducedMotion,
+        LocalHaptic provides if (data.haptics) haptic else ({}),
         LocalContentColor provides Color(0xFFF5F5F0),
         LocalTextStyle provides
             androidx.compose.ui.text.TextStyle(fontFamily = family, fontSize = 14.sp),
         androidx.compose.foundation.text.selection.LocalTextSelectionColors provides
             androidx.compose.foundation.text.selection.TextSelectionColors(
-                Lime,
-                Lime.copy(alpha = .28f),
+                accent,
+                accent.copy(alpha = .28f),
             ),
     ) {
         content()
     }
 }
+
+@Composable
+fun displayMoney(value: Long, currency: String): String =
+    if (LocalLedger.current.hideBalances) "••••" else money(value, currency)
 
 @Composable
 fun AmountText(
@@ -103,18 +137,23 @@ fun PrimaryButton(
     enabled: Boolean = true,
     glow: Boolean = false,
 ) {
+    val accent = Lime
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(30.dp),
-        containerColor = if (glow) Color.Transparent else Color(0xFF214E16),
-        border = BorderStroke(1.dp, Color(0xFF37762A)),
+        containerColor = if (glow) Color.Transparent else Lime.copy(alpha = .20f),
+        border = BorderStroke(1.dp, Lime.copy(alpha = .6f)),
         modifier =
             modifier.fillMaxWidth().heightIn(min = 51.dp).drawBehind {
                 if (glow)
                     drawRoundRect(
                         Brush.radialGradient(
-                            listOf(Color(0xFF1C510B), Color(0xFF061402), Color.Black),
+                            listOf(
+                                accent.copy(alpha = .3f),
+                                lerp(Color.Black, accent, .04f),
+                                Color.Black,
+                            ),
                             center = Offset(size.width * .5f, size.height * 1.3f),
                             radius = size.width * .55f,
                         ),
@@ -208,7 +247,10 @@ fun EntryRows(
 ) {
     Column(modifier) {
         entries.forEachIndexed { index, entry ->
-            val amount = "${if(entry.type=="income")"+" else "−"}${money(entry.amount,currency)}"
+            val amount =
+                if (LocalLedger.current.hideBalances) "••••"
+                else
+                    "${if(entry.type=="income")"+" else if (entry.type == "expense") "−" else "↔"}${money(entry.amount,currency)}"
             val stacked = LocalDensity.current.fontScale >= 1.3f || amount.length > 17
             if (index > 0) HorizontalDivider(color = Line, thickness = .5.dp)
             Row(
@@ -226,7 +268,9 @@ fun EntryRows(
                         if (entry.type == "income") Icons.Outlined.SouthWest
                         else Icons.Outlined.NorthEast,
                         null,
-                        tint = if (entry.type == "income") Orange else Lime,
+                        tint =
+                            if (entry.type == "income") IncomeGreen
+                            else if (entry.type == "expense") ExpenseRed else Lime,
                         modifier = Modifier.size(21.dp),
                     )
                 }
@@ -239,10 +283,16 @@ fun EntryRows(
                     )
                     Spacer(Modifier.height(5.dp))
                     Text(
-                        "${entry.category} · ${entry.date.substring(5)}",
+                        "${if (entry.type == "transfer") "Transfer" else if (entry.splits.isNotEmpty()) "Split · ${entry.splits.size} categories" else entry.category} · ${friendlyDate(entry.date)}",
                         fontSize = 10.sp,
                         color = Muted,
                     )
+                    if (entry.fee != null)
+                        Text(
+                            "Fee ${displayMoney(entry.fee.amount, currency)} · ${if (entry.fee.confirmed) "confirmed" else "estimate"}",
+                            fontSize = 10.sp,
+                            color = Muted,
+                        )
                     if (stacked) {
                         Spacer(Modifier.height(6.dp))
                         AmountText(amount, Modifier.fillMaxWidth(), fontSize = 12.sp)
@@ -257,12 +307,13 @@ fun EntryRows(
 
 @Composable
 fun Progress(value: Float, modifier: Modifier = Modifier, color: Color = Lime) {
+    val reduced = LocalReducedMotion.current
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
     val progress by
         animateFloatAsState(
             if (entered) value.coerceIn(0f, 1f) else 0f,
-            tween(550),
+            tween(if (reduced) 0 else 550),
             label = "Budget progress",
         )
     Box(modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color(0xFF30352B))) {
@@ -270,8 +321,9 @@ fun Progress(value: Float, modifier: Modifier = Modifier, color: Color = Lime) {
     }
 }
 
+@Composable
 fun categoryIcon(name: String): ImageVector =
-    when (name) {
+    when (LocalLedger.current.categoryIconKey(name)) {
         "Groceries" -> Icons.Outlined.ShoppingBasket
         "Dining" -> Icons.Outlined.Restaurant
         "Transport" -> Icons.Outlined.DirectionsBus
@@ -282,6 +334,7 @@ fun categoryIcon(name: String): ImageVector =
         else -> Icons.Outlined.MoreHoriz
     }
 
+@Composable
 fun categoryColor(name: String): Color =
     when (name) {
         "Groceries" -> Color(0xFFE0B879)
@@ -300,7 +353,9 @@ fun dailyValues(entries: List<Entry>, month: String): List<Long> {
     entries.forEach { entry ->
         if (entry.date.startsWith(month)) {
             val index = entry.date.takeLast(2).toInt() - 1
-            if (index in values.indices) values[index] += entry.amount
+            if (index in values.indices)
+                values[index] +=
+                    (if (entry.type == "expense") entry.amount else 0L) + (entry.fee?.amount ?: 0L)
         }
     }
     return values.toList()
@@ -310,13 +365,14 @@ fun dailyValues(entries: List<Entry>, month: String): List<Long> {
 fun SpendingLine(
     values: List<Long>,
     modifier: Modifier = Modifier,
-    color: Color = Color(0xFF369B40),
+    color: Color = Lime,
     grid: Boolean = true,
 ) {
+    val reduced = LocalReducedMotion.current
     val reveal = remember { Animatable(0f) }
     LaunchedEffect(values) {
         reveal.snapTo(0f)
-        reveal.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
+        reveal.animateTo(1f, tween(if (reduced) 0 else 750, easing = FastOutSlowInEasing))
     }
     Canvas(modifier) {
         val max = values.maxOrNull()?.coerceAtLeast(1L) ?: 1L

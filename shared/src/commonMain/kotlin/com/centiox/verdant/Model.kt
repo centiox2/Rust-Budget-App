@@ -5,6 +5,7 @@ package com.centiox.verdant
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -27,6 +28,7 @@ val categories =
         "Health",
         "Entertainment",
         "Other",
+        "Transaction fees",
     )
 val currencies = listOf("USD", "KES", "EUR", "GBP", "INR")
 const val MAX_AMOUNT = 100_000_000_000L
@@ -60,11 +62,17 @@ data class Entry(
     val type: String,
     val category: String,
     val date: String,
+    val accountId: String = "main",
+    val targetAccountId: String? = null,
+    val splits: List<Split> = emptyList(),
+    val cleared: Boolean = false,
+    val note: String = "",
+    val fee: TransactionFee? = null,
 )
 
 @Serializable
 data class BudgetData(
-    val version: Int = 1,
+    val version: Int = 2,
     val name: String = "",
     val currency: String = "USD",
     val onboarded: Boolean = false,
@@ -72,6 +80,28 @@ data class BudgetData(
     val budgets: Map<String, Map<String, Long>> = emptyMap(),
     val backgroundColor: String = DEFAULT_BACKGROUND,
     val animateBackground: Boolean = true,
+    val accounts: List<Account> = listOf(Account()),
+    val categorySettings: List<CategorySetting> = emptyList(),
+    val recurring: List<Recurring> = emptyList(),
+    val goals: List<SavingsGoal> = emptyList(),
+    val templates: List<EntryTemplate> = emptyList(),
+    val deleted: List<DeletedEntry> = emptyList(),
+    val budgetCycle: String = "monthly",
+    val payday: Int = 1,
+    val rollover: Boolean = false,
+    val hideBalances: Boolean = false,
+    val reducedMotion: Boolean = false,
+    val haptics: Boolean = false,
+    val appLock: Boolean = false,
+    val reminders: Boolean = false,
+    val backupReminder: Boolean = true,
+    val lastBackupDate: String? = null,
+    val lastExpenseCategory: String = "Other",
+    val lastIncomeCategory: String = "Other",
+    val lastAccountId: String = "main",
+    val entryDraft: EntryDraft? = null,
+    val mpesaFeesDefault: Boolean = true,
+    val lastMpesaFeeKind: String = "Send to M-Pesa",
 )
 
 data class Totals(
@@ -125,7 +155,7 @@ fun validate(data: BudgetData): BudgetData {
         "Invalid background color. Use a six-digit hex color."
     }
     require(
-        data.version == 1 &&
+        data.version in 1..2 &&
             data.name.length <= 50 &&
             (!data.onboarded || data.name.isNotBlank()) &&
             data.currency in currencies
@@ -143,8 +173,8 @@ fun validate(data: BudgetData): BudgetData {
                 it.title.trim().isNotEmpty() &&
                 it.title.length <= 100 &&
                 it.amount in 1..MAX_AMOUNT &&
-                it.type in listOf("income", "expense") &&
-                it.category in categories
+                it.type in listOf("income", "expense", "transfer") &&
+                it.category in data.allCategories()
         ) {
             "Invalid transaction."
         }
@@ -160,15 +190,14 @@ fun validate(data: BudgetData): BudgetData {
         }
     }
     data.budgets.forEach { (month, limits) ->
-        require(Regex("[0-9]{4}-(0[1-9]|1[0-2])").matches(month) && month >= MIN_MONTH) {
-            "Invalid budget month."
-        }
+        require(validBudgetKey(month)) { "Invalid budget month." }
         limits.forEach { (category, amount) ->
-            require(category in categories && amount in 1..MAX_AMOUNT) {
+            require(category in data.allCategories() && amount in 1..MAX_AMOUNT) {
                 "Invalid category budget."
             }
         }
     }
+    validateFeatures(data)
     return data
 }
 
@@ -176,11 +205,10 @@ fun totals(data: BudgetData, month: String): Totals {
     val rows = data.transactions.filter { it.date.startsWith(month) }
     return Totals(
         rows.filter { it.type == "income" }.sumOf { it.amount },
-        rows.filter { it.type == "expense" }.sumOf { it.amount },
-        data.transactions.sumOf { if (it.type == "income") it.amount else -it.amount },
-        categories.associateWith { c ->
-            rows.filter { it.type == "expense" && it.category == c }.sumOf { it.amount }
-        },
+        rows.filter { it.type == "expense" }.sumOf { it.amount } +
+            rows.sumOf { it.fee?.amount ?: 0 },
+        data.accounts.sumOf { data.accountBalance(it.id) },
+        data.allCategories().associateWith { c -> rows.sumOf { it.spentIn(c) } },
     )
 }
 
@@ -196,8 +224,11 @@ fun filteredTransactions(
         .filter {
             it.date.startsWith(month) &&
                 (type == "all" || it.type == type) &&
-                (category == null || it.category == category) &&
-                "${it.title} ${it.category}".contains(query.trim(), true)
+                (category == null ||
+                    it.category == category ||
+                    it.splits.any { split -> split.category == category }) &&
+                "${it.title} ${it.category} ${it.note} ${it.splits.joinToString { split -> split.category }}"
+                    .contains(query.trim(), true)
         }
         .sortedByDescending { it.date }
 
@@ -216,14 +247,14 @@ private val backupJson = Json {
 
 fun encodeBackup(data: BudgetData): String {
     val text = backupJson.encodeToString(validate(data))
-    require(text.length <= 5_000_000) {
+    require(text.encodeToByteArray().size <= 5_000_000) {
         "This ledger is too large to save. Export and archive older records first."
     }
     return text
 }
 
 fun decodeBackup(raw: String): BudgetData {
-    require(raw.length <= 5_000_000) { "Backup is too large." }
+    require(raw.encodeToByteArray().size <= 5_000_000) { "Backup is too large." }
     val cleaned = raw.trim().removePrefix("\uFEFF")
     val fields =
         try {
@@ -255,7 +286,7 @@ fun decodeBackup(raw: String): BudgetData {
                 "The backup contains an invalid or incomplete transaction."
             )
         }
-    return validate(parsed)
+    return validate(parsed).copy(version = 2)
 }
 
 interface BudgetStorage {
@@ -281,9 +312,11 @@ class BudgetRepository(private val storage: BudgetStorage) {
 
     private suspend fun commit(next: BudgetData) {
         val encoded = withContext(Dispatchers.Default) { encodeBackup(next) }
-        storage.write(encoded)
-        mutableData.value = next
-        initialized = true
+        withContext(NonCancellable) {
+            storage.write(encoded)
+            mutableData.value = next
+            initialized = true
+        }
     }
 
     /** Also safe when an Android document result arrives before the new activity loads its UI. */
@@ -298,13 +331,21 @@ class BudgetRepository(private val storage: BudgetStorage) {
     suspend fun update(transform: (BudgetData) -> BudgetData) =
         mutex.withLock {
             if (!initialized) readCurrent()
-            commit(transform(mutableData.value))
+            val next = transform(mutableData.value)
+            commit(
+                next.copy(
+                    deleted =
+                        next.deleted
+                            .filter { daysBetween(it.deletedOn, today().toString()) <= 30 }
+                            .takeLast(200)
+                )
+            )
         }
 
     suspend fun restore(raw: String) {
         val imported = withContext(Dispatchers.Default) { decodeBackup(raw) }
         // A recovery restore must also work when the existing file cannot be decrypted.
-        mutex.withLock { commit(imported) }
+        mutex.withLock { commit(imported.copy(appLock = false)) }
     }
 
     suspend fun reset() = mutex.withLock { commit(BudgetData()) }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
@@ -25,6 +26,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.centiox.verdant.resources.*
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlinx.datetime.minus
 import org.jetbrains.compose.resources.painterResource
 
 enum class Page(val label: String) {
@@ -201,7 +205,12 @@ fun SetupScreen(busy: Boolean, onStart: (String, String, Boolean) -> Unit) {
 }
 
 @Composable
-fun AppHeader(page: Page, data: BudgetData, onPage: (Page) -> Unit) {
+fun AppHeader(
+    page: Page,
+    data: BudgetData,
+    onPage: (Page) -> Unit,
+    onAlerts: (() -> Unit)? = null,
+) {
     Row(
         Modifier.fillMaxWidth()
             .padding(horizontal = 22.dp, vertical = if (page == Page.Home) 18.dp else 14.dp),
@@ -240,7 +249,7 @@ fun AppHeader(page: Page, data: BudgetData, onPage: (Page) -> Unit) {
             RoundAction(
                 Icons.Outlined.NotificationsNone,
                 "View budget alerts",
-                { onPage(Page.Budgets) },
+                onAlerts ?: { onPage(Page.Budgets) },
             )
         } else {
             RoundAction(Icons.Outlined.ArrowBack, "Back to home", { onPage(Page.Home) })
@@ -288,6 +297,8 @@ fun HomeScreen(
     onAdd: (String) -> Unit,
     onBudget: () -> Unit,
     onEdit: (Entry) -> Unit,
+    onAlerts: () -> Unit = {},
+    onTogglePrivacy: () -> Unit = {},
 ) {
     val fontScale = LocalDensity.current.fontScale
     val totals = totals(data, month)
@@ -306,15 +317,19 @@ fun HomeScreen(
                 Modifier.matchParentSize(),
             )
             Column(Modifier.fillMaxWidth()) {
-                AppHeader(Page.Home, data, onPage)
+                AppHeader(Page.Home, data, onPage, onAlerts)
                 Column(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("Total Balance", fontSize = 16.sp, color = Color(0xFFDCE3D5))
+                    TextButton(onTogglePrivacy) {
+                        Text("Total Balance", fontSize = 16.sp, color = Color(0xFFDCE3D5))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (data.hideBalances) "Show" else "Hide", fontSize = 10.sp)
+                    }
                     Spacer(Modifier.height(7.dp))
                     BasicText(
-                        money(totals.balance, data.currency),
+                        displayMoney(totals.balance, data.currency),
                         style =
                             LocalTextStyle.current.copy(
                                 fontSize = 37.sp,
@@ -331,6 +346,13 @@ fun HomeScreen(
                                 .semantics { liveRegion = LiveRegionMode.Polite },
                         maxLines = 1,
                     )
+                    if (data.transactions.any { it.fee?.confirmed == false })
+                        Text(
+                            "Includes ${displayMoney(data.transactions.filter { it.fee?.confirmed == false }.sumOf { it.fee?.amount ?: 0L }, data.currency)} unconfirmed fee estimates",
+                            Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
+                            fontSize = 10.sp,
+                            color = Muted,
+                        )
                     Spacer(Modifier.height(10.dp))
                     val net = totals.income - totals.spent
                     Row(
@@ -345,16 +367,16 @@ fun HomeScreen(
                             if (net < 0) Icons.Outlined.SouthWest else Icons.Outlined.NorthEast,
                             null,
                             Modifier.size(15.dp),
-                            if (net < 0) Orange else Lime,
+                            if (net < 0) ExpenseRed else IncomeGreen,
                         )
                         Text(
                             if (totals.income == 0L && totals.spent == 0L) "No activity this month"
                             else if (net == 0L) "Income matches spending"
                             else
-                                "${if (net > 0) "+" else ""}${money(net, data.currency)} this month",
+                                "${if (net > 0) "+" else ""}${displayMoney(net, data.currency)} this month",
                             Modifier.weight(1f, fill = false).testTag("monthly-cashflow"),
                             fontSize = 12.sp,
-                            color = if (net < 0) Orange else Color(0xFFE0E8DA),
+                            color = if (net < 0) ExpenseRed else Color(0xFFE0E8DA),
                             maxLines = 2,
                             textAlign = TextAlign.Center,
                         )
@@ -364,13 +386,12 @@ fun HomeScreen(
                         Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
-                        maxItemsInEachRow = if (fontScale >= 1.6f) 2 else 4,
+                        maxItemsInEachRow = if (fontScale >= 1.6f) 2 else 3,
                     ) {
                         listOf(
                                 Triple(Icons.Outlined.Payments, "Income", { onAdd("income") }),
                                 Triple(Icons.Outlined.ShoppingBag, "Expense", { onAdd("expense") }),
                                 Triple(Icons.Outlined.ReceiptLong, "Budget", onBudget),
-                                Triple(Icons.Outlined.GridView, "More", { onPage(Page.Settings) }),
                             )
                             .forEach { (icon, label, action) ->
                                 val description =
@@ -391,7 +412,13 @@ fun HomeScreen(
                                             .background(Color.White.copy(alpha = .07f)),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Icon(icon, null, Modifier.size(23.dp), Color(0xFFE3EDDD))
+                                        Icon(
+                                            icon,
+                                            null,
+                                            Modifier.size(23.dp),
+                                            if (label == "Income") IncomeGreen
+                                            else if (label == "Expense") ExpenseRed else Lime,
+                                        )
                                     }
                                     Text(label, fontSize = 12.sp, maxLines = 1)
                                 }
@@ -425,11 +452,15 @@ fun HomeScreen(
             }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    "Income ${money(totals.income,data.currency)}",
+                    "Income ${displayMoney(totals.income,data.currency)}",
                     fontSize = 10.sp,
                     color = Muted,
                 )
-                Text("Spent ${money(totals.spent,data.currency)}", fontSize = 10.sp, color = Muted)
+                Text(
+                    "Spent ${displayMoney(totals.spent,data.currency)}",
+                    fontSize = 10.sp,
+                    color = Muted,
+                )
             }
         }
     }
@@ -447,19 +478,98 @@ fun TransactionsScreen(
     onQueryChange: (String) -> Unit,
     onFilterChange: (String) -> Unit,
     onCategoryChange: (String?) -> Unit,
+    onBulkCategory: suspend (Set<String>, String) -> Unit = { _, _ -> },
+    onBulkDelete: (Set<String>) -> Unit = {},
 ) {
-    val filtered = query.isNotEmpty() || filter != "all" || category != null
+    var advanced by rememberSaveable { mutableStateOf(false) }
+    var account by rememberSaveable { mutableStateOf("") }
+    var from by rememberSaveable { mutableStateOf("") }
+    var to by rememberSaveable { mutableStateOf("") }
+    var minAmount by rememberSaveable { mutableStateOf("") }
+    var maxAmount by rememberSaveable { mutableStateOf("") }
+    var appliedFrom by rememberSaveable { mutableStateOf("") }
+    var appliedTo by rememberSaveable { mutableStateOf("") }
+    var appliedMin by rememberSaveable { mutableStateOf<Long?>(null) }
+    var appliedMax by rememberSaveable { mutableStateOf<Long?>(null) }
+    var sort by rememberSaveable { mutableStateOf("Newest") }
+    var status by rememberSaveable { mutableStateOf("All") }
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(arrayListOf<String>()) }
+    var bulkCategory by rememberSaveable { mutableStateOf(data.activeCategories().first()) }
+    var deleting by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var bulkBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope { kotlinx.coroutines.Dispatchers.Main.immediate }
+    val listState = rememberLazyListState()
+    val filtered =
+        query.isNotEmpty() ||
+            filter != "all" ||
+            category != null ||
+            account.isNotEmpty() ||
+            appliedFrom.isNotEmpty() ||
+            appliedTo.isNotEmpty() ||
+            appliedMin != null ||
+            appliedMax != null ||
+            status != "All"
     fun resetFilters() {
         onQueryChange("")
         onFilterChange("all")
         onCategoryChange(null)
+        account = ""
+        from = ""
+        to = ""
+        minAmount = ""
+        maxAmount = ""
+        appliedFrom = ""
+        appliedTo = ""
+        appliedMin = null
+        appliedMax = null
+        status = "All"
+        error = null
+    }
+    val signature =
+        "$month|$query|$filter|$category|$account|$appliedFrom|$appliedTo|$appliedMin|$appliedMax|$sort|$status"
+    var lastSearch by rememberSaveable { mutableStateOf(signature) }
+    LaunchedEffect(signature) {
+        if (signature != lastSearch) {
+            listState.scrollToItem(0)
+            lastSearch = signature
+        }
+        selected = arrayListOf()
+    }
+    LaunchedEffect(data.transactions) {
+        selected = ArrayList(selected.filter { id -> data.transactions.any { it.id == id } })
     }
     val rows =
-        remember(data.transactions, month, filter, query, category) {
-            filteredTransactions(data, month, query, filter, category)
+        remember(data.transactions, signature) {
+            val base =
+                filteredTransactions(
+                        data,
+                        if (appliedFrom.isNotEmpty() || appliedTo.isNotEmpty()) "" else month,
+                        query,
+                        filter,
+                        category,
+                    )
+                    .filter {
+                        (account.isEmpty() ||
+                            it.accountId == account ||
+                            it.targetAccountId == account) &&
+                            (appliedFrom.isEmpty() || it.date >= appliedFrom) &&
+                            (appliedTo.isEmpty() || it.date <= appliedTo) &&
+                            (appliedMin == null || it.amount >= appliedMin!!) &&
+                            (appliedMax == null || it.amount <= appliedMax!!) &&
+                            (status == "All" || it.cleared == (status == "Cleared"))
+                    }
+            when (sort) {
+                "Oldest" -> base.sortedBy { it.date }
+                "Highest amount" -> base.sortedByDescending { it.amount }
+                "Lowest amount" -> base.sortedBy { it.amount }
+                else -> base
+            }
         }
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 21.dp).testTag("transaction-list"),
+        state = listState,
         contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
     ) {
         item {
@@ -488,37 +598,172 @@ fun TransactionsScreen(
         }
         item {
             Row(
-                Modifier.padding(bottom = 15.dp),
+                Modifier.fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                listOf("all" to "All", "expense" to "Expenses", "income" to "Income").forEach {
-                    (value, label) ->
-                    FilterChip(
-                        filter == value,
-                        { onFilterChange(value) },
-                        label = { Text(label, fontSize = 12.sp) },
+                listOf(
+                        "all" to "All",
+                        "expense" to "Expenses",
+                        "income" to "Income",
+                        "transfer" to "Transfers",
                     )
+                    .forEach { (value, label) ->
+                        FilterChip(
+                            filter == value,
+                            { onFilterChange(value) },
+                            label = { Text(label, fontSize = 12.sp) },
+                        )
+                    }
+            }
+            Row {
+                TextButton({ advanced = !advanced }) {
+                    Text(if (advanced) "Hide filters" else "More filters", fontSize = 11.sp)
+                }
+                TextButton({
+                    selecting = !selecting
+                    selected = arrayListOf()
+                }) {
+                    Text(if (selecting) "Done selecting" else "Select records", fontSize = 11.sp)
                 }
             }
         }
+        if (advanced)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ChoiceField(
+                        "Account",
+                        if (account.isEmpty()) "All accounts" else data.accountName(account),
+                        listOf("All accounts") + data.accounts.map { it.name },
+                        { value -> account = data.accounts.find { it.name == value }?.id.orEmpty() },
+                    )
+                    ChoiceField(
+                        "Sort",
+                        sort,
+                        listOf("Newest", "Oldest", "Highest amount", "Lowest amount"),
+                        { sort = it },
+                    )
+                    ChoiceField(
+                        "Statement status",
+                        status,
+                        listOf("All", "Cleared", "Pending"),
+                        { status = it },
+                    )
+                    Field("From date · YYYY-MM-DD", from, { from = it.take(10) })
+                    Field("To date · YYYY-MM-DD", to, { to = it.take(10) })
+                    Field("Minimum amount · optional", minAmount, { minAmount = it.take(32) })
+                    Field("Maximum amount · optional", maxAmount, { maxAmount = it.take(32) })
+                    Text(
+                        "Date ranges override the month selected above.",
+                        fontSize = 11.sp,
+                        color = Muted,
+                    )
+                    OutlinedButton(
+                        {
+                            try {
+                                require(from.isBlank() || validDate(from)) {
+                                    "Use YYYY-MM-DD for the start date."
+                                }
+                                require(to.isBlank() || validDate(to)) {
+                                    "Use YYYY-MM-DD for the end date."
+                                }
+                                require(from.isBlank() || to.isBlank() || from <= to) {
+                                    "Start date must come before end date."
+                                }
+                                fun bound(v: String): Long? =
+                                    if (v.isBlank()) null
+                                    else if (Regex("0+(?:[.,]0{0,2})?").matches(v.trim())) 0L
+                                    else parseAmount(v)
+                                val low = bound(minAmount)
+                                val high = bound(maxAmount)
+                                require(low == null || high == null || low <= high) {
+                                    "Minimum must not exceed maximum."
+                                }
+                                appliedFrom = from.trim()
+                                appliedTo = to.trim()
+                                appliedMin = low
+                                appliedMax = high
+                                advanced = false
+                                error = null
+                            } catch (e: Exception) {
+                                error = e.message
+                            }
+                        },
+                        Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Apply date & amount filters")
+                    }
+                }
+            }
         if (category != null)
             item {
                 InputChip(
-                    selected = true,
-                    onClick = { onCategoryChange(null) },
-                    label = { Text(category, fontSize = 12.sp) },
-                    trailingIcon = {
-                        Icon(Icons.Outlined.Close, "Remove category filter", Modifier.size(16.dp))
-                    },
+                    true,
+                    { onCategoryChange(null) },
+                    { Text(category, fontSize = 12.sp) },
+                    { Icon(Icons.Outlined.Close, "Remove category filter", Modifier.size(16.dp)) },
                 )
+            }
+        if (error != null) item { Text(error!!, color = ErrorColor, fontSize = 12.sp) }
+        if (selecting)
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${selected.size} selected", fontSize = 12.sp)
+                    TextButton({ selected = ArrayList(rows.map { it.id }) }) {
+                        Text("Select filtered records")
+                    }
+                    ChoiceField(
+                        "New category",
+                        bulkCategory,
+                        data.activeCategories(),
+                        { bulkCategory = it },
+                    )
+                    Text(
+                        "Recategorizing assigns the whole amount to one category and removes any splits. Transfers are left unchanged.",
+                        fontSize = 11.sp,
+                        color = Muted,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        TextButton(
+                            {
+                                if (!bulkBusy) {
+                                    bulkBusy = true
+                                    scope.launch {
+                                        try {
+                                            onBulkCategory(selected.toSet(), bulkCategory)
+                                            selected = arrayListOf()
+                                            error = null
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            error = e.message
+                                        } finally {
+                                            bulkBusy = false
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = selected.isNotEmpty() && !bulkBusy,
+                        ) {
+                            Text("Apply category")
+                        }
+                        TextButton(
+                            { deleting = true },
+                            enabled = selected.isNotEmpty() && !bulkBusy,
+                        ) {
+                            Text("Delete selected", color = ExpenseRed)
+                        }
+                    }
+                }
             }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${rows.size} transaction${if(rows.size==1) "" else "s"}",
+                    "${rows.size} transaction${if (rows.size == 1) "" else "s"}",
+                    Modifier.weight(1f).padding(vertical = 12.dp),
                     fontSize = 11.sp,
                     color = Muted,
-                    modifier = Modifier.weight(1f).padding(vertical = 12.dp),
                 )
                 if (filtered && rows.isNotEmpty())
                     TextButton(::resetFilters) { Text("Clear filters", fontSize = 11.sp) }
@@ -526,43 +771,90 @@ fun TransactionsScreen(
         }
         if (rows.isEmpty())
             item {
-                Column {
-                    EmptyState(
-                        "No transactions found",
-                        if (filtered) "Clear your filters or try another month."
-                        else "Add your first transaction for ${monthLabel(month)}.",
-                        Icons.Outlined.Search,
-                        action = if (filtered) "Clear filters" else "Add a transaction",
-                        onAction = if (filtered) ::resetFilters else onAdd,
+                EmptyState(
+                    "No transactions found",
+                    if (filtered) "Clear your filters or try another month."
+                    else "Add your first transaction for ${monthLabel(month)}.",
+                    Icons.Outlined.Search,
+                    action = if (filtered) "Clear filters" else "Add a transaction",
+                    onAction = if (filtered) ::resetFilters else onAdd,
+                )
+            }
+        itemsIndexed(rows, key = { _, e -> e.id }) { index, entry ->
+            Column {
+                if (index > 0) HorizontalDivider(thickness = .5.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (selecting)
+                        Checkbox(
+                            entry.id in selected,
+                            { checked ->
+                                selected =
+                                    ArrayList(
+                                        if (checked) selected + entry.id else selected - entry.id
+                                    )
+                            },
+                        )
+                    EntryRows(
+                        listOf(entry),
+                        data.currency,
+                        { e ->
+                            if (selecting)
+                                selected =
+                                    ArrayList(
+                                        if (e.id in selected) selected - e.id else selected + e.id
+                                    )
+                            else onEdit(e)
+                        },
+                        Modifier.weight(1f).testTag("transaction-${entry.id}"),
+                        horizontalPadding = 0.dp,
                     )
                 }
             }
-        itemsIndexed(rows, key = { _, entry -> entry.id }) { index, entry ->
-            Column {
-                if (index > 0) HorizontalDivider(color = Line, thickness = .5.dp)
-                EntryRows(
-                    listOf(entry),
-                    data.currency,
-                    onEdit,
-                    Modifier.testTag("transaction-${entry.id}"),
-                    horizontalPadding = 0.dp,
-                )
-            }
         }
     }
+    if (deleting)
+        AlertDialog(
+            { deleting = false },
+            { Text("Delete ${selected.size} transactions?") },
+            {
+                Text(
+                    "Undo restores this batch while the message is visible. Tools keeps up to 200 recently deleted entries for 30 days."
+                )
+            },
+            {
+                TextButton({
+                    onBulkDelete(selected.toSet())
+                    deleting = false
+                }) {
+                    Text("Delete", color = ExpenseRed)
+                }
+            },
+            { TextButton({ deleting = false }) { Text("Cancel") } },
+        )
 }
 
 @Composable
 fun BudgetsScreen(
     data: BudgetData,
     month: String,
-    onSet: () -> Unit,
+    onSet: (String) -> Unit,
     onCopyPrevious: (() -> Unit)? = null,
 ) {
-    val limits = data.budgets[month].orEmpty()
-    val totals = totals(data, month)
+    var anchor by
+        rememberSaveable(month) {
+            mutableStateOf(
+                (if (month == currentMonth()) today()
+                    else
+                        kotlinx.datetime.LocalDate.parse(
+                            "$month-${data.payday.toString().padStart(2,'0')}"
+                        ))
+                    .toString()
+            )
+        }
+    val period = data.period(kotlinx.datetime.LocalDate.parse(anchor))
+    val limits = data.limitsFor(period)
     val total = limits.values.sum()
-    val spent = limits.keys.sumOf { totals.byCategory[it] ?: 0 }
+    val spent = limits.keys.sumOf { data.periodSpending(period, it) }
     Column(
         Modifier.fillMaxSize()
             .verticalScroll(rememberScrollState())
@@ -571,10 +863,36 @@ fun BudgetsScreen(
             .padding(top = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
+        if (data.budgetCycle != "monthly")
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                IconButton({
+                    anchor = period.start.minus(1, kotlinx.datetime.DateTimeUnit.DAY).toString()
+                }) {
+                    Icon(Icons.Outlined.ChevronLeft, "Previous budget period")
+                }
+                Text(period.label, Modifier.weight(1f), fontSize = 11.sp)
+                IconButton({ anchor = period.end.toString() }) {
+                    Icon(Icons.Outlined.ChevronRight, "Next budget period")
+                }
+            }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("MONTHLY SPENDING PLAN", fontSize = 9.sp, letterSpacing = 1.6.sp, color = Muted)
-            AmountText(money(spent, data.currency), Modifier.fillMaxWidth(), fontSize = 32.sp)
-            Text("of ${money(total, data.currency)} planned", fontSize = 12.sp, color = Muted)
+            Text(
+                if (data.budgetCycle == "monthly") "MONTHLY SPENDING PLAN"
+                else "${data.budgetCycle.uppercase()} SPENDING PLAN",
+                fontSize = 9.sp,
+                letterSpacing = 1.6.sp,
+                color = Muted,
+            )
+            AmountText(
+                displayMoney(spent, data.currency),
+                Modifier.fillMaxWidth(),
+                fontSize = 32.sp,
+            )
+            Text(
+                "of ${displayMoney(total, data.currency)} planned",
+                fontSize = 12.sp,
+                color = Muted,
+            )
             Progress(
                 if (total > 0) spent.toFloat() / total else 0f,
                 color = if (spent > total && total > 0) Orange else Lime,
@@ -582,21 +900,27 @@ fun BudgetsScreen(
             Text(
                 if (total == 0L) "Give every little bit a direction."
                 else if (spent > total)
-                    "${money(spent - total, data.currency)} over your planned limits"
-                else "${money(total - spent, data.currency)} remaining in planned categories",
+                    "${displayMoney(spent - total, data.currency)} over your planned limits"
+                else
+                    "${displayMoney(total - spent, data.currency)} remaining in planned categories",
                 fontSize = 11.sp,
                 color = if (spent > total && total > 0) Orange else Muted,
             )
         }
         HorizontalDivider(thickness = .5.dp)
         Column {
-            SectionHeader("Your categories", "Set limits", onSet, horizontalPadding = 0.dp)
+            SectionHeader(
+                "Your categories",
+                "Set limits",
+                { onSet(period.key) },
+                horizontalPadding = 0.dp,
+            )
             if (limits.isEmpty())
                 EmptyState(
                     "Plan a little. Breathe easier.",
                     "Set a limit for groceries, transport, or anything else.",
                     action = "Create a budget",
-                    onAction = onSet,
+                    onAction = { onSet(period.key) },
                 )
             if (limits.isEmpty() && onCopyPrevious != null)
                 OutlinedButton(onCopyPrevious, Modifier.fillMaxWidth()) {
@@ -605,18 +929,18 @@ fun BudgetsScreen(
                     Text("Use last month's limits", fontSize = 12.sp)
                 }
             limits.forEach { (category, limit) ->
-                val used = totals.byCategory[category] ?: 0
+                val used = data.periodSpending(period, category)
                 Column(
                     Modifier.fillMaxWidth()
                         .testTag("budget-category-$category")
-                        .clickable(role = Role.Button, onClick = onSet)
+                        .clickable(role = Role.Button, onClick = { onSet(period.key) })
                         .padding(vertical = 15.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     val stacked =
                         LocalDensity.current.fontScale >= 1.3f ||
-                            money(used, data.currency).length > 16 ||
-                            money(limit, data.currency).length > 16
+                            displayMoney(used, data.currency).length > 16 ||
+                            displayMoney(limit, data.currency).length > 16
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -629,7 +953,7 @@ fun BudgetsScreen(
                             Text(category, fontSize = 14.sp)
                             if (!stacked)
                                 AmountText(
-                                    money(used, data.currency),
+                                    displayMoney(used, data.currency),
                                     Modifier.fillMaxWidth().testTag("budget-spent-$category"),
                                     fontSize = 20.sp,
                                 )
@@ -642,7 +966,7 @@ fun BudgetsScreen(
                             ) {
                                 Text("Planned", fontSize = 10.sp, color = Muted)
                                 AmountText(
-                                    money(limit, data.currency),
+                                    displayMoney(limit, data.currency),
                                     Modifier.widthIn(max = 100.dp),
                                     fontSize = 12.sp,
                                     color = Muted,
@@ -652,15 +976,19 @@ fun BudgetsScreen(
                     }
                     if (stacked) {
                         AmountText(
-                            money(used, data.currency),
+                            displayMoney(used, data.currency),
                             Modifier.fillMaxWidth().testTag("budget-spent-$category"),
                             fontSize = 22.sp,
                         )
-                        Text("of ${money(limit, data.currency)}", fontSize = 11.sp, color = Muted)
+                        Text(
+                            "of ${displayMoney(limit, data.currency)}",
+                            fontSize = 11.sp,
+                            color = Muted,
+                        )
                     }
                     Progress(used.toFloat() / limit, color = if (used > limit) Orange else Lime)
                     Text(
-                        "${money(kotlin.math.abs(limit - used), data.currency)} ${if (used > limit) "over limit" else "left to spend"}",
+                        "${displayMoney(kotlin.math.abs(limit - used), data.currency)} ${if (used > limit) "over limit" else "left to spend"}",
                         fontSize = 11.sp,
                         color = if (used > limit) Orange else Muted,
                     )
@@ -688,10 +1016,14 @@ fun AnalyticsScreen(
     onEdit: (Entry) -> Unit,
     onAll: () -> Unit,
     onCategory: (String) -> Unit,
+    onFees: () -> Unit = {},
 ) {
     val totals = totals(data, month)
-    val expenses = data.transactions.filter { it.type == "expense" && it.date.startsWith(month) }
-    val daily = dailyValues(expenses, month)
+    val expenses =
+        data.transactions.filter {
+            (it.type == "expense" || (it.fee?.amount ?: 0) > 0) && it.date.startsWith(month)
+        }
+    val daily = dailyValues(data.transactions, month)
     Column(
         Modifier.fillMaxSize()
             .verticalScroll(rememberScrollState())
@@ -704,7 +1036,7 @@ fun AnalyticsScreen(
             Text("Spending Overview", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Text("Total spent this month", fontSize = 11.sp, color = Muted)
             AmountText(
-                money(totals.spent, data.currency),
+                displayMoney(totals.spent, data.currency),
                 Modifier.fillMaxWidth().testTag("analytics-total"),
                 fontSize = 32.sp,
             )
@@ -719,7 +1051,20 @@ fun AnalyticsScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 (0..4)
                     .map { (daily.lastIndex * it / 4.0).roundToInt() + 1 }
-                    .forEach { Text(it.toString(), fontSize = 10.sp, color = Muted) }
+                    .forEachIndexed { index, day ->
+                        Text(
+                            day.toString(),
+                            Modifier.weight(1f).testTag("chart-day-$index"),
+                            fontSize = 10.sp,
+                            color = Muted,
+                            textAlign =
+                                when (index) {
+                                    0 -> TextAlign.Start
+                                    4 -> TextAlign.End
+                                    else -> TextAlign.Center
+                                },
+                        )
+                    }
             }
             Text("Daily expenses · ${monthLabel(month)}", fontSize = 10.sp, color = Muted)
         }
@@ -727,7 +1072,7 @@ fun AnalyticsScreen(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Income", fontSize = 11.sp, color = Muted)
                 AmountText(
-                    money(totals.income, data.currency),
+                    displayMoney(totals.income, data.currency),
                     Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                 )
@@ -735,18 +1080,64 @@ fun AnalyticsScreen(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Net this month", fontSize = 11.sp, color = Muted)
                 AmountText(
-                    money(totals.income - totals.spent, data.currency),
+                    displayMoney(totals.income - totals.spent, data.currency),
                     Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     color = if (totals.income < totals.spent) Orange else Lime,
                 )
             }
         }
+        val feeRows = data.transactions.filter { it.date.startsWith(month) && it.fee != null }
+        ToolRow(
+            "Transaction fees",
+            "${feeRows.size} transactions with fees · ${feeRows.count { it.fee?.confirmed == false }} unconfirmed estimates",
+            onFees,
+        ) {
+            AmountText(
+                displayMoney(feeRows.sumOf { it.fee?.amount ?: 0L }, data.currency),
+                Modifier.fillMaxWidth(),
+                fontSize = 24.sp,
+                color = ExpenseRed,
+            )
+            Text("View by type and amount band", fontSize = 11.sp, color = Lime)
+        }
+        val previous = totals(data, shiftMonth(month, -1))
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text("Compared with last month", fontSize = 13.sp)
+            Text(
+                "${displayMoney(previous.spent, data.currency)} spent in ${monthLabel(shiftMonth(month, -1))}",
+                fontSize = 11.sp,
+                color = Muted,
+            )
+            val change = totals.spent - previous.spent
+            Text(
+                if (previous.spent == 0L) "No prior spending to compare"
+                else
+                    "${displayMoney(kotlin.math.abs(change), data.currency)} ${if (change > 0) "more" else "less"} spent",
+                fontSize = 12.sp,
+                color = if (change > 0) ExpenseRed else IncomeGreen,
+            )
+            val upcoming =
+                data.recurring
+                    .filter {
+                        it.active &&
+                            it.type == "expense" &&
+                            it.nextDate.startsWith(month) &&
+                            it.nextDate >= today().toString()
+                    }
+                    .sumOf { it.amount + (it.fee?.amount ?: 0) }
+            Text(
+                "Next scheduled expenses in this month: ${displayMoney(upcoming, data.currency)}",
+                fontSize = 11.sp,
+                color = Muted,
+            )
+        }
         HorizontalDivider(thickness = .5.dp)
         if (expenses.isNotEmpty())
             Column {
                 SectionHeader("Where it went", horizontalPadding = 0.dp)
-                categories
+                data
+                    .allCategories()
                     .filter { (totals.byCategory[it] ?: 0) > 0 }
                     .sortedByDescending { totals.byCategory[it] }
                     .forEach { category ->
@@ -772,7 +1163,7 @@ fun AnalyticsScreen(
                                 Icon(Icons.Outlined.ChevronRight, null, Modifier.size(16.dp), Muted)
                             }
                             AmountText(
-                                money(amount, data.currency),
+                                displayMoney(amount, data.currency),
                                 Modifier.fillMaxWidth(),
                                 fontSize = 18.sp,
                             )
@@ -812,6 +1203,7 @@ fun SettingsScreen(
     onImport: () -> Unit,
     onReset: () -> Unit,
     onAppearance: (String, Boolean) -> Unit,
+    onTools: (String) -> Unit = {},
 ) {
     var name by rememberSaveable(data.name) { mutableStateOf(data.name) }
     var currency by rememberSaveable(data.currency) { mutableStateOf(data.currency) }
@@ -824,6 +1216,11 @@ fun SettingsScreen(
             .padding(top = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(26.dp),
     ) {
+        ToolRow(
+            "Planning & tools",
+            "Accounts, scheduled payments, goals, categories, privacy, and data tools.",
+            { onTools("Tools") },
+        )
         AppearancePanel(data, busy, onAppearance)
         HorizontalDivider(thickness = .5.dp)
         Column(
@@ -902,7 +1299,7 @@ fun SettingsScreen(
                 }
         }
         Text(
-            "Verdant Budget · 2.2.0\nRoom for what matters.",
+            "Verdant Budget · 3.0.0\nRoom for what matters.",
             fontSize = 10.sp,
             lineHeight = 22.sp,
             color = Muted,

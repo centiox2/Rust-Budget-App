@@ -90,16 +90,18 @@ fun Button(
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(16.dp),
     border: BorderStroke? = null,
-    containerColor: Color = Color(0xFF244D1C),
+    containerColor: Color = Lime.copy(alpha = .2f),
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 13.dp),
     content: @Composable RowScope.() -> Unit,
 ) {
+    val haptic = LocalHaptic.current
+    val reduced = LocalReducedMotion.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by
         animateFloatAsState(
             if (pressed) .98f else 1f,
-            spring(dampingRatio = .82f, stiffness = 700f),
+            if (reduced) snap() else spring(dampingRatio = .82f, stiffness = 700f),
             label = "Button press",
         )
     Row(
@@ -116,7 +118,10 @@ fun Button(
                 indication = LocalIndication.current,
                 enabled = enabled,
                 role = Role.Button,
-                onClick = onClick,
+                onClick = {
+                    haptic()
+                    onClick()
+                },
             )
             .heightIn(min = 48.dp)
             .padding(contentPadding),
@@ -192,6 +197,8 @@ fun OutlinedTextField(
     trailingIcon: (@Composable () -> Unit)? = null,
     supportingText: (@Composable () -> Unit)? = null,
     singleLine: Boolean = false,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
+        androidx.compose.ui.text.input.VisualTransformation.None,
     shape: Shape = RoundedCornerShape(14.dp),
     textStyle: TextStyle = LocalTextStyle.current,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
@@ -208,6 +215,7 @@ fun OutlinedTextField(
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
         cursorBrush = SolidColor(Lime),
+        visualTransformation = visualTransformation,
         modifier =
             modifier
                 .onFocusChanged { focused = it.isFocused }
@@ -266,16 +274,17 @@ fun FilterChip(
     enabled: Boolean = true,
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
+    val reduced = LocalReducedMotion.current
     val fill by
         animateColorAsState(
             if (selected) Lime.copy(alpha = .11f) else Color.Transparent,
-            tween(180),
+            tween(if (reduced) 0 else 180),
             label = "Selection fill",
         )
     val outline by
         animateColorAsState(
             if (selected) Lime.copy(alpha = .6f) else Color.White.copy(alpha = .14f),
-            tween(180),
+            tween(if (reduced) 0 else 180),
             label = "Selection border",
         )
     Row(
@@ -284,7 +293,7 @@ fun FilterChip(
             .background(fill)
             .border(1.dp, outline, RoundedCornerShape(13.dp))
             .selectable(selected, enabled = enabled, role = Role.Tab, onClick = onClick)
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 13.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -349,8 +358,13 @@ fun Switch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val reduced = LocalReducedMotion.current
     val progress by
-        animateFloatAsState(if (checked) 1f else 0f, tween(170), label = "Switch position")
+        animateFloatAsState(
+            if (checked) 1f else 0f,
+            tween(if (reduced) 0 else 170),
+            label = "Switch position",
+        )
     Box(
         modifier
             .size(52.dp, 48.dp)
@@ -386,6 +400,7 @@ fun Switch(
 
 @Composable
 fun Slider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Modifier) {
+    val accent = Lime
     val change by rememberUpdatedState(onValueChange)
     Canvas(
         modifier
@@ -425,8 +440,8 @@ fun Slider(value: Float, onValueChange: (Float) -> Unit, modifier: Modifier = Mo
             3.dp.toPx(),
             StrokeCap.Round,
         )
-        drawLine(Lime, Offset(inset, y), Offset(x, y), 3.dp.toPx(), StrokeCap.Round)
-        drawCircle(Lime, 7.dp.toPx(), Offset(x, y))
+        drawLine(accent, Offset(inset, y), Offset(x, y), 3.dp.toPx(), StrokeCap.Round)
+        drawCircle(accent, 7.dp.toPx(), Offset(x, y))
         drawCircle(Card, 3.dp.toPx(), Offset(x, y))
     }
 }
@@ -458,15 +473,19 @@ fun CircularProgressIndicator(
 @Composable
 internal expect fun OverlayWindow(onDismissRequest: () -> Unit, content: @Composable () -> Unit)
 
-class SheetController {
+class SheetController(private val reduced: Boolean = false) {
     val fraction = Animatable(1f)
 
-    suspend fun hide() = fraction.animateTo(1f, tween(180))
+    suspend fun hide() = fraction.animateTo(1f, tween(if (reduced) 0 else 180))
 
-    suspend fun show() = fraction.animateTo(0f, tween(240))
+    suspend fun show() = fraction.animateTo(0f, tween(if (reduced) 0 else 240))
 }
 
-@Composable fun rememberSheetController() = remember { SheetController() }
+@Composable
+fun rememberSheetController(): SheetController {
+    val reduced = LocalReducedMotion.current
+    return remember(reduced) { SheetController(reduced) }
+}
 
 @Composable
 fun SheetOverlay(
@@ -476,7 +495,7 @@ fun SheetOverlay(
     dismissEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope { kotlinx.coroutines.Dispatchers.Main.immediate }
     fun dismiss() {
         if (dismissEnabled) scope.launch { finishSheet({ sheetState.hide() }, onDismissRequest) }
     }
@@ -621,27 +640,48 @@ class SnackbarHostState {
     var lastMessage by mutableStateOf("")
         private set
 
+    var actionLabel by mutableStateOf<String?>(null)
+        private set
+
+    private var action: (() -> Unit)? = null
+    private var dismissal: CompletableDeferred<Unit>? = null
+
+    fun performAction() {
+        action?.invoke()
+        dismissal?.complete(Unit)
+    }
+
     private val mutex = Mutex()
 
-    suspend fun showSnackbar(value: String) =
+    suspend fun showSnackbar(value: String, label: String? = null, onAction: (() -> Unit)? = null) =
         mutex.withLock {
             try {
                 lastMessage = value
+                actionLabel = label
+                action = onAction
+                val signal = CompletableDeferred<Unit>()
+                dismissal = signal
                 message = value
-                delay(2800)
+                withTimeoutOrNull(if (label == null) 2800L else 8000L) { signal.await() }
             } finally {
                 message = null
+                action = null
+                actionLabel = null
+                dismissal = null
             }
         }
 }
 
 @Composable
 fun SnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
+    val reduced = LocalReducedMotion.current
     AnimatedVisibility(
         state.message != null,
         modifier,
-        enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 3 },
-        exit = fadeOut(tween(140)),
+        enter =
+            fadeIn(tween(if (reduced) 0 else 180)) +
+                slideInVertically(tween(if (reduced) 0 else 220)) { it / 3 },
+        exit = fadeOut(tween(if (reduced) 0 else 140)),
     ) {
         Row(
             Modifier.clip(RoundedCornerShape(16.dp))
@@ -654,12 +694,15 @@ fun SnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
         ) {
             Icon(Icons.Outlined.Info, null, Modifier.size(18.dp), Lime)
             Text(state.lastMessage, Modifier.weight(1f), fontSize = 12.sp)
+            if (state.actionLabel != null)
+                TextButton(state::performAction) { Text(state.actionLabel!!, fontSize = 12.sp) }
         }
     }
 }
 
 @Composable
 fun BottomNavigation(selected: Page, onSelect: (Page) -> Unit) {
+    val reduced = LocalReducedMotion.current
     Row(
         Modifier.fillMaxWidth()
             .background(Color(0xF5080D09))
@@ -683,13 +726,13 @@ fun BottomNavigation(selected: Page, onSelect: (Page) -> Unit) {
             val tint by
                 animateColorAsState(
                     if (page == selected) Lime else Muted,
-                    tween(180),
+                    tween(if (reduced) 0 else 180),
                     label = "Tab tint",
                 )
             val fill by
                 animateColorAsState(
                     if (page == selected) Color.White.copy(alpha = .035f) else Color.Transparent,
-                    tween(200),
+                    tween(if (reduced) 0 else 200),
                     label = "Tab fill",
                 )
             Column(

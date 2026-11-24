@@ -1,6 +1,7 @@
 package com.centiox.verdant.desktop
 
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.*
 import com.centiox.verdant.*
@@ -10,6 +11,7 @@ import java.nio.file.*
 import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class DesktopBudgetStorage(private val path: Path) : BudgetStorage {
@@ -42,6 +44,7 @@ fun main() = application {
                 ?: Path.of(System.getProperty("user.home"), ".local", "share", "verdant-budget")
         BudgetRepository(DesktopBudgetStorage(dataDir.resolve("budget.json")))
     }
+    val scope = rememberCoroutineScope()
     Window(
         onCloseRequest = ::exitApplication,
         title = "Verdant Budget",
@@ -52,11 +55,18 @@ fun main() = application {
             onExport = { json ->
                 SwingUtilities.invokeLater {
                     val dialog = FileDialog(null as Frame?, "Save Verdant backup", FileDialog.SAVE)
-                    dialog.file = "verdant-${today()}.json"
+                    dialog.file =
+                        "verdant-${today()}.${if (json.trimStart().startsWith('{')) "json" else "csv"}"
                     dialog.isVisible = true
                     if (dialog.file != null)
                         try {
                             Files.writeString(Path.of(dialog.directory, dialog.file), json)
+                            if (json.trimStart().startsWith('{'))
+                                scope.launch {
+                                    repository.update {
+                                        it.copy(lastBackupDate = today().toString())
+                                    }
+                                }
                         } catch (e: Exception) {
                             JOptionPane.showMessageDialog(
                                 null,

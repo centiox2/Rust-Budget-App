@@ -63,9 +63,15 @@ private fun meshTint(color: Color, strength: Float): Color {
  */
 @Composable
 fun LiquidBackground(hex: String, moving: Boolean, modifier: Modifier = Modifier) {
-    val color by animateColorAsState(backgroundColor(hex), tween(700), label = "Liquid palette")
+    val reduced = LocalReducedMotion.current
+    val color by
+        animateColorAsState(
+            backgroundColor(hex),
+            tween(if (reduced) 0 else 700),
+            label = "Liquid palette",
+        )
     val phase: State<Float> =
-        if (moving) {
+        if (moving && !reduced) {
             rememberInfiniteTransition(label = "Liquid drift")
                 .animateFloat(
                     initialValue = 0f,
