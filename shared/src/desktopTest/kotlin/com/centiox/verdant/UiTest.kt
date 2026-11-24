@@ -1,11 +1,18 @@
 package com.centiox.verdant
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.*
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asSkiaBitmap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 import org.jetbrains.skia.EncodedImageFormat
 
 @OptIn(ExperimentalTestApi::class)
@@ -53,6 +60,305 @@ class UiTest {
             save("kotlin-budgets-$width.png")
         }
     }
+
+    @Test
+    fun homeLinksUseCurrentMonthAndActionLabelsWork() =
+        runSkikoComposeUiTest(size = Size(393f, 900f)) {
+            val original = sampleData("Alex", "USD")
+            val previous = shiftMonth(currentMonth(), -1)
+            val data =
+                original.copy(
+                    transactions =
+                        original.transactions +
+                            Entry(
+                                "older",
+                                "Previous month entry",
+                                100,
+                                "expense",
+                                "Other",
+                                "$previous-01",
+                            )
+                )
+            setContent { App(BudgetRepository(storage(data)), {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Budgets").performClick()
+            onNodeWithContentDescription("Previous month").performClick()
+            onNodeWithContentDescription("Home").performClick()
+            onNodeWithText("View Budgets").performScrollTo().performClick()
+            onNodeWithText(monthLabel(currentMonth())).assertExists()
+            onNodeWithText("Set your intentions.").assertDoesNotExist()
+            onNodeWithContentDescription("Transactions").performClick()
+            onNodeWithContentDescription("Previous month").performClick()
+            onNodeWithText("1 transaction").assertExists()
+            onNodeWithContentDescription("Home").performClick()
+            onNodeWithText("See all").performScrollTo().performClick()
+            onNodeWithText(monthLabel(currentMonth())).assertExists()
+            onNodeWithText("9 transactions").assertExists()
+            onNodeWithContentDescription("Home").performClick()
+            onNodeWithText("Expense").performClick()
+            onNodeWithTag("entry-amount").assertExists()
+            onNodeWithContentDescription("Close").performClick()
+            onNodeWithText("Income").performClick()
+            onNode(hasText("Income") and isSelected()).assertExists()
+        }
+
+    @Test
+    fun homeShowsNegativeCashFlowAndOverBudgetTruthfully() =
+        runSkikoComposeUiTest(size = Size(360f, 900f)) {
+            val data =
+                BudgetData(
+                    name = "Alex",
+                    onboarded = true,
+                    transactions =
+                        listOf(
+                            Entry(
+                                "spent",
+                                "Groceries",
+                                100,
+                                "expense",
+                                "Groceries",
+                                today().toString(),
+                            )
+                        ),
+                    budgets = mapOf(currentMonth() to mapOf("Groceries" to 50L)),
+                )
+            setContent { App(BudgetRepository(storage(data)), {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithTag("monthly-cashflow").assertTextEquals("−$1.00 this month")
+            onNodeWithTag("home-budget-status", useUnmergedTree = true)
+                .assertTextContains("$0.50 over your planned limits.")
+            onNodeWithText("Review budgets").assertExists()
+            save("kotlin-home-over-budget.png")
+        }
+
+    @Test
+    fun customCalendarUpdatesTheEntryDate() =
+        runSkikoComposeUiTest(size = Size(393f, 852f)) {
+            val repository = BudgetRepository(storage(sampleData("Alex", "USD")))
+            setContent { App(repository, {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Add transaction").performClick()
+            onNodeWithContentDescription("Choose date").performScrollTo().performClick()
+            onNodeWithContentDescription("1 ${monthLabel(currentMonth())}")
+                .performScrollTo()
+                .performClick()
+            save("kotlin-custom-calendar.png")
+            onNodeWithText("Done").performClick()
+            onNodeWithTag("entry-date").assertTextContains("${currentMonth()}-01")
+            save("kotlin-custom-entry.png")
+        }
+
+    @Test
+    fun appearancePickerPersistsCustomColorAndMotionChoice() =
+        runSkikoComposeUiTest(size = Size(393f, 900f)) {
+            val repository = BudgetRepository(storage(sampleData("Alex", "USD")))
+            setContent { App(repository, {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Settings").performClick()
+            onNodeWithContentDescription("Ocean background").performScrollTo().performClick()
+            waitUntil(timeoutMillis = 10000) { repository.data.value.backgroundColor == "#268CBA" }
+            onNodeWithTag("background-motion").performScrollTo().performClick()
+            waitUntil(timeoutMillis = 10000) { !repository.data.value.animateBackground }
+            onNodeWithTag("background-motion").assertIsOff()
+            save("kotlin-liquid-settings.png")
+            onNodeWithText("Custom color").performScrollTo().performClick()
+            onNodeWithTag("background-hex").performTextReplacement("#NOTHEX")
+            onNodeWithText("Apply color").assertIsNotEnabled()
+            onNodeWithTag("background-hex").performTextReplacement("#8C5BCE")
+            save("kotlin-color-picker.png")
+            onNodeWithContentDescription("Red color channel").performSemanticsAction(
+                SemanticsActions.SetProgress
+            ) {
+                it(.8f)
+            }
+            onNodeWithTag("background-hex").assertTextContains("#CC5BCE")
+            onNodeWithText("Apply color").performClick()
+            waitUntil(timeoutMillis = 10000) { repository.data.value.backgroundColor == "#CC5BCE" }
+            assertFalse(repository.data.value.animateBackground)
+            onNodeWithContentDescription("Home").performClick()
+            save("kotlin-liquid-purple-home.png")
+        }
+
+    @Test
+    fun liquidPixelsMoveAndStayStillWhenPaused() =
+        runSkikoComposeUiTest(size = Size(360f, 600f)) {
+            mainClock.autoAdvance = false
+            var moving by mutableStateOf(true)
+            setContent {
+                LiquidBackground(
+                    DEFAULT_BACKGROUND,
+                    moving,
+                    androidx.compose.ui.Modifier.fillMaxSize(),
+                )
+            }
+            mainClock.advanceTimeByFrame()
+            fun pixels(): ByteArray =
+                org.jetbrains.skia.Image.makeFromBitmap(onRoot().captureToImage().asSkiaBitmap())
+                    .encodeToData(EncodedImageFormat.PNG)!!
+                    .bytes
+            val first = pixels()
+            save("kotlin-liquid-phase-a.png")
+            mainClock.advanceTimeBy(20_000)
+            assertFalse(first.contentEquals(pixels()), "The liquid background must actually move.")
+            save("kotlin-liquid-phase-b.png")
+            runOnIdle { moving = false }
+            mainClock.advanceTimeByFrame()
+            val paused = pixels()
+            mainClock.advanceTimeBy(20_000)
+            assertTrue(paused.contentEquals(pixels()), "Paused backgrounds must not drift.")
+        }
+
+    @Test
+    fun categoryFiltersSurviveNavigationAndCanBeCleared() =
+        runSkikoComposeUiTest(size = Size(360f, 900f)) {
+            val sample = sampleData("Alex", "USD")
+            val data =
+                sample.copy(
+                    transactions =
+                        sample.transactions +
+                            Entry(
+                                "collision",
+                                "Groceries storage",
+                                500,
+                                "expense",
+                                "Shopping",
+                                today().toString(),
+                            )
+                )
+            setContent { App(BudgetRepository(storage(data)), {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Analytics").performClick()
+            onAllNodes(hasText("Groceries") and hasClickAction())
+                .onFirst()
+                .performScrollTo()
+                .performClick()
+            onNodeWithText("2 transactions").assertExists()
+            onNodeWithText("Groceries storage").assertDoesNotExist()
+            onNodeWithContentDescription("Home").performClick()
+            onNodeWithContentDescription("Transactions").performClick()
+            onNodeWithText("2 transactions").assertExists()
+            onNodeWithTag("transaction-search").performTextInput(" Weekly ")
+            onNodeWithText("1 transaction").assertExists()
+            onNodeWithContentDescription("Analytics").performClick()
+            onNodeWithContentDescription("Transactions").performClick()
+            onNodeWithTag("transaction-search").assertTextContains(" Weekly ")
+            save("kotlin-filtered-activity.png")
+            onNodeWithContentDescription("Clear search").performClick()
+            onNodeWithText("2 transactions").assertExists()
+            onNodeWithText("Clear filters").performClick()
+            onNodeWithText("10 transactions").assertExists()
+        }
+
+    @Test
+    fun copyPreviousLimitsAndReturnToCurrentMonth() =
+        runSkikoComposeUiTest(size = Size(360f, 900f)) {
+            val original = sampleData("Alex", "USD")
+            val repository = BudgetRepository(storage(original))
+            setContent { App(repository, {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Budgets").performClick()
+            onNodeWithContentDescription("Next month").performClick()
+            val next = shiftMonth(currentMonth(), 1)
+            onNodeWithText("Use last month's limits").performScrollTo().performClick()
+            waitUntil(timeoutMillis = 10000) { repository.data.value.budgets[next] != null }
+            assertEquals(original.budgets[currentMonth()], repository.data.value.budgets[next])
+            assertEquals(original.transactions, repository.data.value.transactions)
+            onNodeWithContentDescription("Home").performClick()
+            onNodeWithContentDescription("Budgets").performClick()
+            onNodeWithText(monthLabel(next)).assertExists()
+            save("kotlin-copied-budgets.png")
+            onNodeWithContentDescription("Go to current month").performClick()
+            onNodeWithText(monthLabel(currentMonth())).assertExists()
+        }
+
+    @Test
+    fun largeCurrencyAmountsFitAtLargeTextSizes() =
+        runSkikoComposeUiTest(size = Size(360f, 900f), density = Density(1f, 1.4f)) {
+            val data =
+                BudgetData(
+                    name = "Alex",
+                    currency = "KES",
+                    onboarded = true,
+                    transactions =
+                        listOf(
+                            Entry(
+                                "large",
+                                "Groceries",
+                                MAX_AMOUNT,
+                                "expense",
+                                "Groceries",
+                                today().toString(),
+                            )
+                        ),
+                    budgets = mapOf(currentMonth() to mapOf("Groceries" to MAX_AMOUNT)),
+                )
+            setContent { App(BudgetRepository(storage(data)), {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            onNodeWithContentDescription("Analytics").performClick()
+            onNodeWithTag("analytics-total").performSemanticsAction(
+                SemanticsActions.GetTextLayoutResult
+            ) { action ->
+                val results = mutableListOf<TextLayoutResult>()
+                assertTrue(action(results))
+                assertFalse(results.single().hasVisualOverflow)
+            }
+            save("kotlin-analytics-large-text.png")
+            onNodeWithContentDescription("Budgets").performClick()
+            onNodeWithTag("budget-spent-Groceries", useUnmergedTree = true)
+                .performScrollTo()
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
+                    val results = mutableListOf<TextLayoutResult>()
+                    assertTrue(action(results))
+                    assertFalse(results.single().hasVisualOverflow)
+                }
+            save("kotlin-budgets-large-text.png")
+        }
+
+    @Test
+    fun failedSaveKeepsDraftAndRetryKeepsItsIdentity() =
+        runSkikoComposeUiTest(size = Size(393f, 852f)) {
+            val attempts = mutableListOf<Entry>()
+            var dismissed = false
+            setContent {
+                VerdantTheme {
+                    EntrySheet(
+                        null,
+                        "expense",
+                        currentMonth(),
+                        { dismissed = true },
+                        { entry ->
+                            attempts += entry
+                            if (attempts.size == 1) throw java.io.IOException("Disk unavailable")
+                        },
+                        {},
+                    )
+                }
+            }
+            onNodeWithTag("entry-amount").performTextInput(",50")
+            onNodeWithTag("entry-title").performTextInput("Morning tea")
+            onNodeWithTag("save-entry").performScrollTo().performClick()
+            onNodeWithTag("form-error").assertExists()
+            onNodeWithTag("entry-title").assertTextContains("Morning tea")
+            onNodeWithTag("save-entry").performScrollTo().performClick()
+            waitUntil(timeoutMillis = 10000) { dismissed }
+            assertEquals(2, attempts.size)
+            assertEquals(attempts[0].id, attempts[1].id)
+            assertEquals(50L, attempts.last().amount)
+        }
 
     @Test
     fun welcomeAndEntryFlow() =

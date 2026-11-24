@@ -7,9 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
@@ -20,11 +17,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.*
-import kotlin.time.Instant
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+internal suspend fun finishSheet(hide: suspend () -> Unit, dismiss: () -> Unit) {
+    try {
+        hide()
+    } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
+    }
+    dismiss()
+}
+
 @Composable
 fun EntrySheet(
     entry: Entry?,
@@ -51,16 +58,16 @@ fun EntrySheet(
     var calendar by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    val sheetState = rememberSheetController()
+    SheetOverlay(
         onDismissRequest = { if (!busy) onDismiss() },
         containerColor = Card,
         sheetState = sheetState,
+        dismissEnabled = !busy,
     ) {
         Column(
             Modifier.fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .imePadding()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 26.dp),
             verticalArrangement = Arrangement.spacedBy(17.dp),
@@ -76,8 +83,7 @@ fun EntrySheet(
                     {
                         scope.launch {
                             focus.clearFocus()
-                            sheetState.hide()
-                            onDismiss()
+                            finishSheet({ sheetState.hide() }, onDismiss)
                         }
                     },
                     enabled = !busy,
@@ -90,6 +96,7 @@ fun EntrySheet(
                     FilterChip(
                         type == value,
                         { type = value },
+                        enabled = !busy,
                         label = { Text(label) },
                         leadingIcon = {
                             Icon(
@@ -106,6 +113,7 @@ fun EntrySheet(
             OutlinedTextField(
                 amount,
                 { amount = it.take(32) },
+                enabled = !busy,
                 label = { Text("Amount") },
                 placeholder = { Text("0.00") },
                 keyboardOptions =
@@ -116,13 +124,15 @@ fun EntrySheet(
                 keyboardActions =
                     KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.headlineMedium,
+                textStyle =
+                    LocalTextStyle.current.copy(fontSize = 27.sp, fontWeight = FontWeight.SemiBold),
                 shape = RoundedCornerShape(15.dp),
                 modifier = Modifier.fillMaxWidth().testTag("entry-amount"),
             )
             OutlinedTextField(
                 title,
                 { title = it.take(100) },
+                enabled = !busy,
                 label = { Text("What was it for?") },
                 placeholder = {
                     Text(
@@ -143,18 +153,23 @@ fun EntrySheet(
                 categories,
                 { category = it },
                 Modifier.testTag("entry-category"),
+                enabled = !busy,
             )
             OutlinedTextField(
                 date,
                 { date = it.take(10) },
+                enabled = !busy,
                 label = { Text("Date") },
                 placeholder = { Text("YYYY-MM-DD") },
                 singleLine = true,
                 trailingIcon = {
-                    IconButton({
-                        focus.clearFocus()
-                        calendar = true
-                    }) {
+                    IconButton(
+                        enabled = !busy,
+                        onClick = {
+                            focus.clearFocus()
+                            calendar = true
+                        },
+                    ) {
                         Icon(Icons.Outlined.CalendarMonth, "Choose date")
                     }
                 },
@@ -166,36 +181,41 @@ fun EntrySheet(
             if (error != null)
                 Text(
                     error!!,
-                    color = MaterialTheme.colorScheme.error,
+                    color = ErrorColor,
                     fontSize = 12.sp,
                     modifier = Modifier.testTag("form-error"),
                 )
             PrimaryButton(
                 if (busy) "Saving…" else if (entry == null) "Add transaction" else "Save changes",
                 {
+                    if (busy) return@PrimaryButton
                     error = null
+                    busy = true
                     scope.launch {
-                        busy = true
                         try {
-                            val next =
-                                Entry(
-                                    draftId,
-                                    title.trim(),
-                                    parseAmount(amount),
-                                    type,
-                                    category,
-                                    date,
-                                )
-                            validate(BudgetData(transactions = listOf(next)))
-                            onSave(next)
+                            try {
+                                val next =
+                                    Entry(
+                                        draftId,
+                                        title.trim(),
+                                        parseAmount(amount),
+                                        type,
+                                        category,
+                                        date,
+                                    )
+                                validate(BudgetData(transactions = listOf(next)))
+                                onSave(next)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                error =
+                                    if (e is IllegalArgumentException) e.message
+                                    else
+                                        "Could not save this transaction. Your saved data is unchanged."
+                                return@launch
+                            }
                             focus.clearFocus()
-                            sheetState.hide()
-                            onDismiss()
-                        } catch (e: Exception) {
-                            error =
-                                if (e is IllegalArgumentException) e.message
-                                else
-                                    "Could not save this transaction. Your saved data is unchanged."
+                            finishSheet({ sheetState.hide() }, onDismiss)
                         } finally {
                             busy = false
                         }
@@ -212,42 +232,17 @@ fun EntrySheet(
                 }
         }
     }
-    if (calendar) {
-        val state =
-            rememberDatePickerState(
-                initialSelectedDateMillis =
-                    runCatching {
-                            LocalDate.parse(date)
-                                .takeIf { it.year in 1900..2100 }
-                                ?.atStartOfDayIn(TimeZone.UTC)
-                                ?.toEpochMilliseconds()
-                        }
-                        .getOrNull()
-            )
-        DatePickerDialog(
-            onDismissRequest = { calendar = false },
-            confirmButton = {
-                TextButton({
-                    state.selectedDateMillis?.let {
-                        date =
-                            Instant.fromEpochMilliseconds(it)
-                                .toLocalDateTime(TimeZone.UTC)
-                                .date
-                                .toString()
-                    }
-                    calendar = false
-                }) {
-                    Text("Done")
-                }
+    if (calendar)
+        BudgetDatePicker(
+            date,
+            { calendar = false },
+            {
+                date = it
+                calendar = false
             },
-            dismissButton = { TextButton({ calendar = false }) { Text("Cancel") } },
-        ) {
-            DatePicker(state)
-        }
-    }
+        )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetSheet(
     limits: Map<String, Long>,
@@ -263,16 +258,16 @@ fun BudgetSheet(
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    val sheetState = rememberSheetController()
+    SheetOverlay(
         onDismissRequest = { if (!busy) onDismiss() },
         containerColor = Card,
         sheetState = sheetState,
+        dismissEnabled = !busy,
     ) {
         Column(
             Modifier.fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .imePadding()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 26.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -288,8 +283,7 @@ fun BudgetSheet(
                     {
                         scope.launch {
                             focus.clearFocus()
-                            sheetState.hide()
-                            onDismiss()
+                            finishSheet({ sheetState.hide() }, onDismiss)
                         }
                     },
                     enabled = !busy,
@@ -306,45 +300,72 @@ fun BudgetSheet(
                 OutlinedTextField(
                     values[i],
                     { next -> values = ArrayList(values).also { it[i] = next.take(32) } },
+                    enabled = !busy,
                     label = { Text(category) },
                     singleLine = true,
                     keyboardOptions =
                         KeyboardOptions(
                             keyboardType = KeyboardType.Decimal,
-                            imeAction = ImeAction.Next,
+                            imeAction =
+                                if (i == categories.lastIndex) ImeAction.Done else ImeAction.Next,
                         ),
                     keyboardActions =
-                        KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
+                        KeyboardActions(
+                            onNext = { focus.moveFocus(FocusDirection.Down) },
+                            onDone = { focus.clearFocus() },
+                        ),
                     shape = RoundedCornerShape(13.dp),
                     modifier = Modifier.fillMaxWidth().testTag("budget-$category"),
                 )
             }
             if (error != null)
-                Text(error!!, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                Text(
+                    error!!,
+                    fontSize = 12.sp,
+                    color = ErrorColor,
+                    modifier = Modifier.testTag("budget-error"),
+                )
             PrimaryButton(
                 if (busy) "Saving…" else "Save budgets",
                 {
+                    if (busy) return@PrimaryButton
                     error = null
+                    busy = true
                     scope.launch {
-                        busy = true
                         try {
-                            val next =
-                                categories
-                                    .mapIndexedNotNull { i, c ->
-                                        val text = values[i].trim()
-                                        if (text.isBlank() || Regex("0+(\\.0{1,2})?").matches(text))
-                                            null
-                                        else c to parseAmount(text)
-                                    }
-                                    .toMap()
-                            onSave(next)
+                            try {
+                                val next =
+                                    categories
+                                        .mapIndexedNotNull { i, c ->
+                                            val text = values[i].trim().replace(',', '.')
+                                            if (
+                                                text.isBlank() ||
+                                                    Regex("(?:0+(?:\\.0{0,2})?|\\.0{1,2})")
+                                                        .matches(text)
+                                            )
+                                                null
+                                            else
+                                                c to
+                                                    try {
+                                                        parseAmount(text)
+                                                    } catch (e: IllegalArgumentException) {
+                                                        throw IllegalArgumentException(
+                                                            "$c: ${e.message}"
+                                                        )
+                                                    }
+                                        }
+                                        .toMap()
+                                onSave(next)
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                error =
+                                    if (e is IllegalArgumentException) e.message
+                                    else "Could not save budgets. Your saved data is unchanged."
+                                return@launch
+                            }
                             focus.clearFocus()
-                            sheetState.hide()
-                            onDismiss()
-                        } catch (e: Exception) {
-                            error =
-                                if (e is IllegalArgumentException) e.message
-                                else "Could not save budgets. Your saved data is unchanged."
+                            finishSheet({ sheetState.hide() }, onDismiss)
                         } finally {
                             busy = false
                         }

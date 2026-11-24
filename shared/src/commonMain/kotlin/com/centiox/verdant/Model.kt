@@ -4,10 +4,12 @@ package com.centiox.verdant
 
 import kotlin.random.Random
 import kotlin.time.Clock
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -28,6 +30,9 @@ val categories =
     )
 val currencies = listOf("USD", "KES", "EUR", "GBP", "INR")
 const val MAX_AMOUNT = 100_000_000_000L
+const val DEFAULT_BACKGROUND = "#67A642"
+const val MIN_MONTH = "0001-01"
+const val MAX_MONTH = "9999-12"
 
 fun today(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
@@ -41,8 +46,11 @@ fun monthLabel(month: String): String {
     return "${date.month.name.lowercase().replaceFirstChar { it.uppercase() }} ${date.year}"
 }
 
-fun shiftMonth(month: String, delta: Int): String =
-    LocalDate.parse("$month-01").plus(delta, DateTimeUnit.MONTH).toString().take(7)
+fun shiftMonth(month: String, delta: Int): String {
+    val date = LocalDate.parse("$month-01")
+    val index = ((date.year - 1) * 12L + date.month.ordinal + delta).coerceIn(0, 9999 * 12L - 1)
+    return "${(index / 12 + 1).toString().padStart(4, '0')}-${(index % 12 + 1).toString().padStart(2, '0')}"
+}
 
 @Serializable
 data class Entry(
@@ -62,6 +70,8 @@ data class BudgetData(
     val onboarded: Boolean = false,
     val transactions: List<Entry> = emptyList(),
     val budgets: Map<String, Map<String, Long>> = emptyMap(),
+    val backgroundColor: String = DEFAULT_BACKGROUND,
+    val animateBackground: Boolean = true,
 )
 
 data class Totals(
@@ -81,12 +91,12 @@ fun BudgetData.withEntry(entry: Entry): BudgetData =
     )
 
 fun parseAmount(text: String): Long {
-    val value = text.trim()
-    require(Regex("[0-9]+(\\.[0-9]{1,2})?").matches(value)) {
+    val value = text.trim().replace(',', '.')
+    require(Regex("(?:[0-9]+(?:\\.[0-9]{0,2})?|\\.[0-9]{1,2})").matches(value)) {
         "Use a positive amount with up to 2 decimal places."
     }
     val parts = value.split('.')
-    val whole = parts[0].toLongOrNull() ?: error("Amount is too large.")
+    val whole = requireNotNull(parts[0].ifEmpty { "0" }.toLongOrNull()) { "Amount is too large." }
     require(whole <= MAX_AMOUNT / 100) { "Amount is too large." }
     val minor = parts.getOrElse(1) { "" }.padEnd(2, '0').toLong()
     val result = whole * 100 + minor
@@ -111,6 +121,9 @@ fun money(value: Long, currency: String): String {
 }
 
 fun validate(data: BudgetData): BudgetData {
+    require(Regex("#[0-9a-fA-F]{6}").matches(data.backgroundColor)) {
+        "Invalid background color. Use a six-digit hex color."
+    }
     require(
         data.version == 1 &&
             data.name.length <= 50 &&
@@ -136,13 +149,20 @@ fun validate(data: BudgetData): BudgetData {
             "Invalid transaction."
         }
         require(
-            runCatching { LocalDate.parse(it.date).toString() == it.date }.getOrDefault(false)
+            runCatching {
+                    LocalDate.parse(it.date).let { date ->
+                        date.year in 1..9999 && date.toString() == it.date
+                    }
+                }
+                .getOrDefault(false)
         ) {
             "Invalid transaction date."
         }
     }
     data.budgets.forEach { (month, limits) ->
-        require(Regex("[0-9]{4}-(0[1-9]|1[0-2])").matches(month)) { "Invalid budget month." }
+        require(Regex("[0-9]{4}-(0[1-9]|1[0-2])").matches(month) && month >= MIN_MONTH) {
+            "Invalid budget month."
+        }
         limits.forEach { (category, amount) ->
             require(category in categories && amount in 1..MAX_AMOUNT) {
                 "Invalid category budget."
@@ -162,6 +182,30 @@ fun totals(data: BudgetData, month: String): Totals {
             rows.filter { it.type == "expense" && it.category == c }.sumOf { it.amount }
         },
     )
+}
+
+fun filteredTransactions(
+    data: BudgetData,
+    month: String,
+    query: String = "",
+    type: String = "all",
+    category: String? = null,
+): List<Entry> =
+    data.transactions
+        .asReversed()
+        .filter {
+            it.date.startsWith(month) &&
+                (type == "all" || it.type == type) &&
+                (category == null || it.category == category) &&
+                "${it.title} ${it.category}".contains(query.trim(), true)
+        }
+        .sortedByDescending { it.date }
+
+fun BudgetData.withPreviousMonthLimits(month: String): BudgetData {
+    require(budgets[month].isNullOrEmpty()) { "This month already has budget limits." }
+    val previous = budgets[shiftMonth(month, -1)]
+    require(!previous.isNullOrEmpty()) { "There are no limits to copy from last month." }
+    return copy(budgets = budgets + (month to previous.toMap()))
 }
 
 private val backupJson = Json {
@@ -226,34 +270,44 @@ class BudgetRepository(private val storage: BudgetStorage) {
     private val mutableData = MutableStateFlow(BudgetData())
     val data = mutableData.asStateFlow()
 
-    suspend fun load() =
-        mutex.withLock {
-            storage.read()?.let { mutableData.value = decodeBackup(it) }
-            initialized = true
-        }
+    suspend fun load() = mutex.withLock { readCurrent() }
+
+    private suspend fun readCurrent() {
+        val raw = storage.read()
+        mutableData.value =
+            withContext(Dispatchers.Default) { raw?.let(::decodeBackup) ?: BudgetData() }
+        initialized = true
+    }
+
+    private suspend fun commit(next: BudgetData) {
+        val encoded = withContext(Dispatchers.Default) { encodeBackup(next) }
+        storage.write(encoded)
+        mutableData.value = next
+        initialized = true
+    }
 
     /** Also safe when an Android document result arrives before the new activity loads its UI. */
     suspend fun snapshot(): String =
         mutex.withLock {
             if (!initialized) {
-                storage.read()?.let { mutableData.value = decodeBackup(it) }
-                initialized = true
+                readCurrent()
             }
-            encodeBackup(mutableData.value)
+            withContext(Dispatchers.Default) { encodeBackup(mutableData.value) }
         }
 
     suspend fun update(transform: (BudgetData) -> BudgetData) =
         mutex.withLock {
-            val next = validate(transform(mutableData.value))
-            storage.write(encodeBackup(next))
-            mutableData.value = next
-            initialized = true
+            if (!initialized) readCurrent()
+            commit(transform(mutableData.value))
         }
 
     suspend fun restore(raw: String) {
-        val imported = decodeBackup(raw)
-        update { imported }
+        val imported = withContext(Dispatchers.Default) { decodeBackup(raw) }
+        // A recovery restore must also work when the existing file cannot be decrypted.
+        mutex.withLock { commit(imported) }
     }
+
+    suspend fun reset() = mutex.withLock { commit(BudgetData()) }
 }
 
 fun sampleData(name: String, currency: String): BudgetData {

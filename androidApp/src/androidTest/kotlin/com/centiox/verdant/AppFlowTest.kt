@@ -59,6 +59,47 @@ class AppFlowTest {
     }
 
     @Test
+    fun appearanceSurvivesActivityRecreation() {
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("start").performScrollTo().performClick()
+        compose.onNodeWithTag("profile-name").performTextInput("Appearance owner")
+        compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithContentDescription("Ocean background").performScrollTo().performClick()
+        compose.waitUntil(15000) {
+            compose
+                .onAllNodes(hasContentDescription("Ocean background") and isSelected())
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.onNodeWithTag("background-motion").performScrollTo().performClick()
+        compose.waitUntil(15000) {
+            compose
+                .onAllNodes(hasTestTag("background-motion") and isOff())
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(15000) {
+            compose
+                .onAllNodesWithContentDescription("Ocean background")
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+        compose
+            .onNodeWithContentDescription("Ocean background")
+            .performScrollTo()
+            .assertIsSelected()
+        compose.onNodeWithTag("background-motion").performScrollTo().assertIsOff()
+        screenshot("android-appearance.png")
+    }
+
+    @Test
     fun nativeLedgerFlowAndPersistence() {
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()

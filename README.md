@@ -2,19 +2,23 @@
 
 A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
 
-The visual direction closely follows the supplied reference: black surfaces, a forest-green balance panel, warm gold coin artwork, Poppins typography, circular actions, a folded green ribbon, and rounded analytics cards. The UI includes accessible touch targets, adaptive balance text, native date selection, keyboard-aware sheets, back navigation, and deliberate empty states.
+The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Version 2.1 replaces static background gradients with an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
 
 ## Features
 
 - Income and expense creation, editing, deletion, categories, and dates.
-- Lifetime balance and monthly totals, search, filters, and month navigation.
-- Monthly category budgets and over-budget indicators.
+- Lifetime balance and truthful monthly cash flow, clearable search, exact category filters, preserved navigation state, and a quick return to the current month.
+- Monthly category budgets, copying last month's limits into an unplanned month, and over-budget indicators.
 - Daily spending charts, category breakdowns, and savings percentages.
 - USD, KES, EUR, GBP, and INR. Currency selection changes the display symbol without converting amounts.
 - Local storage with atomic writes and Keystore-backed encryption on Android. Failed writes leave the active ledger unchanged.
 - Native JSON backup export and restore with validation and confirmation before replacement.
 - Backup compatibility with the previous Verdant Rust/Tauri implementation.
 - Optional sample data, kept separate from a new empty ledger.
+- Comma or dot decimal keyboard input, large-text layouts, adaptive money labels, and retry-safe forms that preserve drafts on failed writes.
+- Home action tiles are fully tappable; home budget and transaction links always open the current month. The budget banner reports planned-category overspending and opens the overview instead of unexpectedly opening an editor.
+
+See [custom interface](docs/design-system.md) and [liquid background](docs/liquid-background.md) implementation notes.
 
 ## Project structure
 

@@ -139,5 +139,16 @@ class ReleaseFlowTest {
         assertTrue(device.wait(Until.gone(By.text("Edit transaction")), 20_000))
         click(By.desc("Home"))
         assertEquals(balance, amount(node(By.res("total-balance")).text))
+        click(By.desc("Settings"))
+        scrollClick(By.desc("Ocean background"))
+        node(By.text("#268CBA"))
+        scrollClick(By.res("background-motion"))
+        assertTrue(device.wait(Until.hasObject(By.res("background-motion").checked(false)), 15_000))
+        device.executeShellCommand("am force-stop $app")
+        launch()
+        click(By.desc("Settings"))
+        node(By.text("#268CBA"))
+        assertTrue(device.wait(Until.hasObject(By.res("background-motion").checked(false)), 15_000))
+        screenshot("android-release-appearance.png")
     }
 }

@@ -4,19 +4,17 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun App(
@@ -45,46 +43,53 @@ fun App(
     var initialType by rememberSaveable { mutableStateOf("expense") }
     var confirm by remember { mutableStateOf<String?>(null) }
     var pendingBackup by remember { mutableStateOf<String?>(null) }
-    var query by remember { mutableStateOf("") }
-    var transactionFilter by remember { mutableStateOf("all") }
+    var backupCount by remember { mutableStateOf(0) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var transactionFilter by rememberSaveable { mutableStateOf("all") }
+    var transactionCategory by rememberSaveable { mutableStateOf<String?>(null) }
     fun go(next: Page) {
         focus.clearFocus()
         keyboard?.hide()
-        if (next == Page.Home) month = currentMonth()
-        if (next == Page.Transactions) {
-            query = ""
-            transactionFilter = "all"
-        }
         pageName = next.name
     }
+    fun showTransactions(type: String = "all", category: String? = null) {
+        query = ""
+        transactionFilter = type
+        transactionCategory = category
+        go(Page.Transactions)
+    }
     fun add(type: String) {
+        focus.clearFocus()
+        keyboard?.hide()
         if (page == Page.Home) month = currentMonth()
         editingId = null
         initialType = type
         sheet = "entry"
     }
     fun edit(entry: Entry) {
+        focus.clearFocus()
+        keyboard?.hide()
         editingId = entry.id
         initialType = entry.type
         sheet = "entry"
     }
     fun action(message: String, operation: suspend () -> Unit) {
+        if (busy) return
+        busy = true
         focus.clearFocus()
         keyboard?.hide()
         scope.launch {
-            busy = true
+            var result = message
             try {
                 operation()
-                busy = false
-                snackbar.showSnackbar(message)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                busy = false
-                snackbar.showSnackbar(
-                    e.message ?: "Something went wrong. Your saved data is unchanged."
-                )
+                result = e.message ?: "Something went wrong. Your saved data is unchanged."
             } finally {
                 busy = false
             }
+            snackbar.showSnackbar(result)
         }
     }
     backHandler(
@@ -103,9 +108,12 @@ fun App(
     LaunchedEffect(externalBackup) {
         externalBackup?.let { raw ->
             try {
-                decodeBackup(raw)
+                backupCount =
+                    withContext(Dispatchers.Default) { decodeBackup(raw).transactions.size }
                 pendingBackup = raw
                 confirm = "restore"
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 onExternalBackupConsumed()
                 snackbar.showSnackbar(e.message ?: "Choose a valid Verdant backup.")
@@ -117,19 +125,35 @@ fun App(
             if (raw != null)
                 scope.launch {
                     try {
-                        decodeBackup(raw)
+                        backupCount =
+                            withContext(Dispatchers.Default) { decodeBackup(raw).transactions.size }
                         pendingBackup = raw
                         confirm = "restore"
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         snackbar.showSnackbar(e.message ?: "Invalid backup.")
                     }
                 }
         }
     }
+    fun exportBackup() {
+        scope.launch {
+            try {
+                onExport(withContext(Dispatchers.Default) { encodeBackup(data) })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                snackbar.showSnackbar(e.message ?: "Could not prepare the backup.")
+            }
+        }
+    }
     LaunchedEffect(repository) {
         try {
             repository.load()
             ready = true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             loadError =
                 "The saved ledger could not be opened. It has not been overwritten. Restore a backup, or start a new ledger."
@@ -139,6 +163,7 @@ fun App(
         rootModifier.fillMaxSize().background(Color.Black),
         contentAlignment = Alignment.TopCenter,
     ) {
+        LiquidBackground(data.backgroundColor, data.animateBackground, Modifier.matchParentSize())
         Column(
             Modifier.widthIn(max = 620.dp)
                 .fillMaxSize()
@@ -223,7 +248,16 @@ fun App(
                                             HomeScreen(
                                                 data,
                                                 currentMonth(),
-                                                ::go,
+                                                { destination ->
+                                                    if (
+                                                        destination == Page.Transactions ||
+                                                            destination == Page.Budgets
+                                                    )
+                                                        month = currentMonth()
+                                                    if (destination == Page.Transactions)
+                                                        showTransactions()
+                                                    else go(destination)
+                                                },
                                                 ::add,
                                                 {
                                                     month = currentMonth()
@@ -239,24 +273,40 @@ fun App(
                                                 ::edit,
                                                 query,
                                                 transactionFilter,
+                                                transactionCategory,
+                                                { query = it },
+                                                { transactionFilter = it },
+                                                { transactionCategory = it },
                                             )
                                         Page.Budgets ->
-                                            BudgetsScreen(data, month) { sheet = "budget" }
+                                            BudgetsScreen(
+                                                data,
+                                                month,
+                                                { sheet = "budget" },
+                                                if (
+                                                    data.budgets[month].isNullOrEmpty() &&
+                                                        !data.budgets[shiftMonth(month, -1)]
+                                                            .isNullOrEmpty()
+                                                ) {
+                                                    {
+                                                        val targetMonth = month
+                                                        action("Budget limits copied.") {
+                                                            repository.update {
+                                                                it.withPreviousMonthLimits(
+                                                                    targetMonth
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+                                                } else null,
+                                            )
                                         Page.Analytics ->
                                             AnalyticsScreen(
                                                 data,
                                                 month,
                                                 ::edit,
-                                                {
-                                                    query = ""
-                                                    transactionFilter = "expense"
-                                                    pageName = Page.Transactions.name
-                                                },
-                                                {
-                                                    query = it
-                                                    transactionFilter = "expense"
-                                                    pageName = Page.Transactions.name
-                                                },
+                                                { showTransactions("expense") },
+                                                { showTransactions("expense", it) },
                                             )
                                         Page.Settings ->
                                             SettingsScreen(
@@ -272,9 +322,19 @@ fun App(
                                                         }
                                                     }
                                                 },
-                                                { onExport(encodeBackup(data)) },
+                                                ::exportBackup,
                                                 ::importBackup,
                                                 { confirm = "reset" },
+                                                { hex, moving ->
+                                                    action("Appearance saved.") {
+                                                        repository.update {
+                                                            it.copy(
+                                                                backgroundColor = hex,
+                                                                animateBackground = moving,
+                                                            )
+                                                        }
+                                                    }
+                                                },
                                             )
                                     }
                                 }
@@ -282,47 +342,7 @@ fun App(
                         }
                     }
                     HorizontalDivider(color = Color(0xFF1B2117), thickness = .5.dp)
-                    NavigationBar(
-                        containerColor = Color(0xFF080B07),
-                        contentColor = Muted,
-                        tonalElevation = 0.dp,
-                        windowInsets = WindowInsets(0, 0, 0, 0),
-                    ) {
-                        Page.entries.forEach { destination ->
-                            val icon =
-                                when (destination) {
-                                    Page.Home -> Icons.Outlined.Home
-                                    Page.Transactions -> Icons.Outlined.NorthEast
-                                    Page.Budgets -> Icons.Outlined.AccountBalanceWallet
-                                    Page.Analytics -> Icons.Outlined.BarChart
-                                    Page.Settings -> Icons.Outlined.Settings
-                                }
-                            val label =
-                                when (destination) {
-                                    Page.Transactions -> "Activity"
-                                    Page.Analytics -> "Insights"
-                                    else -> destination.label
-                                }
-                            NavigationBarItem(
-                                selected = page == destination,
-                                onClick = { go(destination) },
-                                icon = { Icon(icon, null, modifier = Modifier.size(21.dp)) },
-                                label = {
-                                    Text(label, fontSize = 10.sp, lineHeight = 14.sp, maxLines = 1)
-                                },
-                                modifier =
-                                    Modifier.semantics { contentDescription = destination.label },
-                                colors =
-                                    NavigationBarItemDefaults.colors(
-                                        selectedIconColor = Lime,
-                                        selectedTextColor = Lime,
-                                        unselectedIconColor = Muted,
-                                        unselectedTextColor = Muted,
-                                        indicatorColor = Color.Transparent,
-                                    ),
-                            )
-                        }
-                    }
+                    BottomNavigation(page, ::go)
                 }
             }
         }
@@ -377,7 +397,7 @@ fun App(
                     when (confirm) {
                         "delete" -> "This entry will be permanently removed."
                         "restore" ->
-                            "This replaces your current ledger with ${pendingBackup?.let{runCatching{decodeBackup(it).transactions.size}.getOrDefault(0)}} backed-up transactions. Export your current data first if you want to keep it."
+                            "This replaces your current ledger with $backupCount backed-up transactions. Export your current data first if you want to keep it."
                         else ->
                             "All transactions, budgets, and preferences will be removed. Export a backup first if you want to keep them."
                     }
@@ -411,11 +431,16 @@ fun App(
                                     repository.restore(
                                         pendingBackup ?: error("Select a backup again.")
                                     )
-                                else -> repository.update { BudgetData() }
+                                else -> repository.reset()
                             }
                             if (selected == "restore") {
                                 pendingBackup = null
                                 onExternalBackupConsumed()
+                                pageName = Page.Home.name
+                                month = currentMonth()
+                                query = ""
+                                transactionFilter = "all"
+                                transactionCategory = null
                             }
                             confirm = null
                             sheet = null
@@ -425,6 +450,9 @@ fun App(
                                 welcome = true
                                 pageName = Page.Home.name
                                 month = currentMonth()
+                                query = ""
+                                transactionFilter = "all"
+                                transactionCategory = null
                             }
                         }
                     },

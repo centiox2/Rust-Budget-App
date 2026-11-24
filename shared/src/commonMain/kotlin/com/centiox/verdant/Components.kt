@@ -3,9 +3,8 @@ package com.centiox.verdant
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
@@ -17,6 +16,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -26,7 +27,7 @@ import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.painterResource
 
 val Lime = Color(0xFF9BD16B)
-val Muted = Color(0xFF9A9B98)
+val Muted = Color(0xFFAEB6A7)
 val Card = Color(0xFF191A18)
 val Line = Color(0xFF2B2D29)
 val Orange = Color(0xFFDC994A)
@@ -38,66 +39,39 @@ fun VerdantTheme(content: @Composable () -> Unit) {
             Font(Res.font.poppins_regular, FontWeight.Normal),
             Font(Res.font.poppins_semibold, FontWeight.SemiBold),
         )
-    val base = Typography()
-    MaterialTheme(
-        colorScheme =
-            darkColorScheme(
-                primary = Lime,
-                onPrimary = Color(0xFF14230E),
-                primaryContainer = Color(0xFF263D1C),
-                onPrimaryContainer = Color(0xFFE1EFD4),
-                onSecondary = Color(0xFF17250F),
-                secondaryContainer = Color(0xFF2B4021),
-                onSecondaryContainer = Color(0xFFD8E8CD),
-                tertiary = Color(0xFFD8AE67),
-                tertiaryContainer = Color(0xFF443117),
-                onTertiaryContainer = Color(0xFFF8DEB3),
-                surfaceVariant = Color(0xFF23291F),
-                onSurfaceVariant = Color(0xFFB6BCAF),
-                surfaceTint = Lime,
-                surfaceContainer = Card,
-                surfaceContainerLow = Color(0xFF141611),
-                surfaceContainerLowest = Color(0xFF080B07),
-                surfaceContainerHigh = Color(0xFF22251F),
-                surfaceContainerHighest = Color(0xFF2A2F26),
-                surfaceBright = Color(0xFF2C3227),
-                surfaceDim = Color(0xFF10130E),
-                background = Color.Black,
-                surface = Card,
-                onSurface = Color(0xFFF5F5F0),
-                onBackground = Color.White,
-                secondary = Lime,
-                outline = Color(0xFF454C3E),
-                error = Color(0xFFF3AD98),
+    CompositionLocalProvider(
+        LocalContentColor provides Color(0xFFF5F5F0),
+        LocalTextStyle provides
+            androidx.compose.ui.text.TextStyle(fontFamily = family, fontSize = 14.sp),
+        androidx.compose.foundation.text.selection.LocalTextSelectionColors provides
+            androidx.compose.foundation.text.selection.TextSelectionColors(
+                Lime,
+                Lime.copy(alpha = .28f),
             ),
-        typography =
-            Typography(
-                displayLarge = base.displayLarge.copy(fontFamily = family),
-                displayMedium = base.displayMedium.copy(fontFamily = family),
-                displaySmall = base.displaySmall.copy(fontFamily = family),
-                headlineLarge = base.headlineLarge.copy(fontFamily = family),
-                headlineMedium = base.headlineMedium.copy(fontFamily = family),
-                headlineSmall = base.headlineSmall.copy(fontFamily = family),
-                titleLarge = base.titleLarge.copy(fontFamily = family),
-                titleMedium = base.titleMedium.copy(fontFamily = family),
-                titleSmall = base.titleSmall.copy(fontFamily = family),
-                bodyLarge = base.bodyLarge.copy(fontFamily = family),
-                bodyMedium = base.bodyMedium.copy(fontFamily = family),
-                bodySmall = base.bodySmall.copy(fontFamily = family),
-                labelLarge = base.labelLarge.copy(fontFamily = family),
-                labelMedium = base.labelMedium.copy(fontFamily = family),
-                labelSmall = base.labelSmall.copy(fontFamily = family),
+    ) {
+        content()
+    }
+}
+
+@Composable
+fun AmountText(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 20.sp,
+    color: Color = LocalContentColor.current,
+    weight: FontWeight = FontWeight.SemiBold,
+) {
+    BasicText(
+        text,
+        modifier,
+        style =
+            LocalTextStyle.current.copy(fontSize = fontSize, color = color, fontWeight = weight),
+        maxLines = 1,
+        autoSize =
+            TextAutoSize.StepBased(
+                minFontSize = minOf(11f, fontSize.value).sp,
+                maxFontSize = fontSize,
             ),
-        content = {
-            CompositionLocalProvider(LocalContentColor provides Color(0xFFF5F5F0)) {
-                CompositionLocalProvider(
-                    LocalTextStyle provides
-                        MaterialTheme.typography.bodyMedium.copy(lineHeight = TextUnit.Unspecified)
-                ) {
-                    content()
-                }
-            }
-        },
     )
 }
 
@@ -108,7 +82,7 @@ fun RoundAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     tint: Color = Color.White,
-    size: Dp = 44.dp,
+    size: Dp = 48.dp,
 ) {
     IconButton(
         onClick = onClick,
@@ -130,11 +104,7 @@ fun PrimaryButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(30.dp),
-        colors =
-            ButtonDefaults.buttonColors(
-                containerColor = if (glow) Color.Transparent else Color(0xFF214E16),
-                contentColor = Color.White,
-            ),
+        containerColor = if (glow) Color.Transparent else Color(0xFF214E16),
         border = BorderStroke(1.dp, Color(0xFF37762A)),
         modifier =
             modifier.fillMaxWidth().heightIn(min = 51.dp).drawBehind {
@@ -158,9 +128,7 @@ fun PrimaryButton(
 @Composable
 fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(Card, Color(0xFF111310)))),
+        modifier.clip(RoundedCornerShape(24.dp)).background(Card.copy(alpha = .94f)),
         content = content,
     )
 }
@@ -205,15 +173,21 @@ fun MonthPicker(month: String, onChange: (String) -> Unit) {
         Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { onChange(shiftMonth(month, -1)) }) {
+        IconButton(onClick = { onChange(shiftMonth(month, -1)) }, enabled = month > MIN_MONTH) {
             Icon(Icons.Outlined.ChevronLeft, "Previous month", Modifier.size(20.dp))
         }
-        Text(monthLabel(month), fontSize = 12.sp)
-        IconButton(onClick = { onChange(shiftMonth(month, 1)) }) {
+        Text(monthLabel(month), Modifier.weight(1f), fontSize = 12.sp, maxLines = 2)
+        IconButton(onClick = { onChange(shiftMonth(month, 1)) }, enabled = month < MAX_MONTH) {
             Icon(Icons.Outlined.ChevronRight, "Next month", Modifier.size(20.dp))
         }
-        Spacer(Modifier.weight(1f))
-        if (LocalDensity.current.fontScale < 1.2f)
+        if (month != currentMonth())
+            TextButton(
+                { onChange(currentMonth()) },
+                Modifier.semantics { contentDescription = "Go to current month" },
+            ) {
+                Text("Current", fontSize = 11.sp)
+            }
+        else if (LocalDensity.current.fontScale < 1.2f)
             Text("Monthly overview", fontSize = 9.sp, color = Muted)
     }
 }
@@ -227,6 +201,8 @@ fun EntryRows(
 ) {
     Column(modifier) {
         entries.forEachIndexed { index, entry ->
+            val amount = "${if(entry.type=="income")"+" else "−"}${money(entry.amount,currency)}"
+            val stacked = LocalDensity.current.fontScale >= 1.3f || amount.length > 17
             if (index > 0) HorizontalDivider(color = Line, thickness = .5.dp)
             Row(
                 Modifier.fillMaxWidth()
@@ -260,12 +236,13 @@ fun EntryRows(
                         fontSize = 10.sp,
                         color = Muted,
                     )
+                    if (stacked) {
+                        Spacer(Modifier.height(6.dp))
+                        AmountText(amount, Modifier.fillMaxWidth(), fontSize = 12.sp)
+                    }
                 }
-                Text(
-                    "${if(entry.type=="income")"+" else "−"}${money(entry.amount,currency)}",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                if (!stacked)
+                    AmountText(amount, modifier = Modifier.widthIn(max = 140.dp), fontSize = 12.sp)
             }
         }
     }
@@ -353,9 +330,9 @@ fun SpendingLine(
                     val after = points[(i + 1).coerceAtMost(points.lastIndex)]
                     cubicTo(
                         a.x + (b.x - before.x) / 6,
-                        a.y + (b.y - before.y) / 6,
+                        (a.y + (b.y - before.y) / 6).coerceIn(size.height * .18f, baseline),
                         b.x - (after.x - a.x) / 6,
-                        b.y - (after.y - a.y) / 6,
+                        (b.y - (after.y - a.y) / 6).coerceIn(size.height * .18f, baseline),
                         b.x,
                         b.y,
                     )
