@@ -6,6 +6,6 @@ Poppins, dark translucent panels, restrained lime accents, thin borders, and rou
 
 Interactive controls use Compose semantics for roles, selection, editable text, progress, disabled states, and announcements. Dialogs use the platform Compose window on Android and an in-window popup on desktop, allowing the shared interface to be rendered in headless UI tests. Forms remain bounded and scrollable around the keyboard.
 
-Home quick actions make both icon and label tappable. Home links intentionally select the current month, while ordinary tab navigation preserves the user's selected period and filters. Budget artwork occupies its own layout area instead of overlapping text. Currency labels and category cards adapt to large amounts and larger text.
+Home quick actions make both icon and label tappable. Home links intentionally select the current month, while ordinary tab navigation preserves the user's selected period and filters. Home uses a uniform near-black surface. Its transaction rows sit directly on that surface with thin separators; there is no promotional banner or enclosing transaction card. The liquid backdrop remains on the other screens. Currency labels and category cards adapt to large amounts and larger text.
 
 Financial persistence is independent of closing animations. A canceled animation after a successful save cannot turn the committed write into a false failure message. Actual task cancellation propagates, failed writes preserve drafts, and stable draft IDs keep retries idempotent.

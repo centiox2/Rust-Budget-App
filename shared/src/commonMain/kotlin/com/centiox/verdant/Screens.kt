@@ -263,15 +263,13 @@ fun HomeScreen(
 ) {
     val fontScale = LocalDensity.current.fontScale
     val totals = totals(data, month)
-    val limits = data.budgets[month].orEmpty()
-    val budget = limits.values.sum()
-    val spent = limits.keys.sumOf { totals.byCategory[it] ?: 0 }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("home-screen")) {
-        Column(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(bottomStart = 25.dp, bottomEnd = 25.dp))
-                .background(Color.Black.copy(alpha = .12f))
-        ) {
+    Column(
+        Modifier.fillMaxSize()
+            .background(HomeBackground)
+            .verticalScroll(rememberScrollState())
+            .testTag("home-screen")
+    ) {
+        Column(Modifier.fillMaxWidth()) {
             AppHeader(Page.Home, data, onPage)
             Column(
                 Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 20.dp),
@@ -365,53 +363,13 @@ fun HomeScreen(
             }
         }
         Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(21.dp)) {
-            val hasPlan = limits.isNotEmpty()
-            val overPlan = hasPlan && spent > budget
-            Row(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(23.dp))
-                    .background(Color.Black.copy(alpha = .30f))
-                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(23.dp))
-                    .clickable(role = Role.Button) {
-                        if (hasPlan) onPage(Page.Budgets) else onBudget()
-                    }
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (!hasPlan) "Make a plan"
-                        else if (overPlan) "Time to rebalance" else "Save & Grow",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        if (!hasPlan) "Set monthly limits for the things that matter."
-                        else if (overPlan)
-                            "${money(spent - budget, data.currency)} over your planned limits."
-                        else "${money(budget - spent, data.currency)} left in planned categories.",
-                        Modifier.testTag("home-budget-status"),
-                        fontSize = 11.sp,
-                        color = if (overPlan) Orange else Muted,
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    ) {
-                        Text(
-                            if (!hasPlan) "Create budget"
-                            else if (overPlan) "Review budgets" else "View Budgets",
-                            fontSize = 11.sp,
-                        )
-                        Icon(Icons.Outlined.ArrowForward, null, Modifier.size(15.dp), Lime)
-                    }
-                }
-                RibbonArt(Modifier.width(if (fontScale >= 1.3f) 80.dp else 112.dp).height(112.dp))
-            }
-            Panel {
-                SectionHeader("Transactions", "See all", { onPage(Page.Transactions) })
-                HorizontalDivider(color = Line, thickness = .5.dp)
+            Column(Modifier.fillMaxWidth().testTag("home-transactions")) {
+                SectionHeader(
+                    "Transactions",
+                    "See all",
+                    { onPage(Page.Transactions) },
+                    horizontalPadding = 0.dp,
+                )
                 val rows =
                     data.transactions
                         .filter { it.date.startsWith(month) }
@@ -425,7 +383,7 @@ fun HomeScreen(
                         action = "Add a transaction",
                         onAction = { onAdd("expense") },
                     )
-                else EntryRows(rows, data.currency, onEdit)
+                else EntryRows(rows, data.currency, onEdit, horizontalPadding = 0.dp)
             }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(

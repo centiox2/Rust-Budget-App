@@ -163,7 +163,14 @@ fun App(
         rootModifier.fillMaxSize().background(Color.Black),
         contentAlignment = Alignment.TopCenter,
     ) {
-        LiquidBackground(data.backgroundColor, data.animateBackground, Modifier.matchParentSize())
+        if (ready && data.onboarded && page == Page.Home)
+            Box(Modifier.matchParentSize().background(HomeBackground))
+        else
+            LiquidBackground(
+                data.backgroundColor,
+                data.animateBackground,
+                Modifier.matchParentSize(),
+            )
         Column(
             Modifier.widthIn(max = 620.dp)
                 .fillMaxSize()

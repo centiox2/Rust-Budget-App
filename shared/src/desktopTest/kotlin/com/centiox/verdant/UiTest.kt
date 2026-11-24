@@ -86,9 +86,12 @@ class UiTest {
             onNodeWithContentDescription("Budgets").performClick()
             onNodeWithContentDescription("Previous month").performClick()
             onNodeWithContentDescription("Home").performClick()
-            onNodeWithText("View Budgets").performScrollTo().performClick()
-            onNodeWithText(monthLabel(currentMonth())).assertExists()
-            onNodeWithText("Set your intentions.").assertDoesNotExist()
+            onNodeWithText("Budget").performClick()
+            onNodeWithText(
+                    "Monthly limits for ${monthLabel(currentMonth())}. Leave blank or enter zero to remove a limit."
+                )
+                .assertExists()
+            onNodeWithContentDescription("Close").performClick()
             onNodeWithContentDescription("Transactions").performClick()
             onNodeWithContentDescription("Previous month").performClick()
             onNodeWithText("1 transaction").assertExists()
@@ -105,7 +108,7 @@ class UiTest {
         }
 
     @Test
-    fun homeShowsNegativeCashFlowAndOverBudgetTruthfully() =
+    fun homeShowsCashFlowWithoutPromotionalOrTransactionCards() =
         runSkikoComposeUiTest(size = Size(360f, 900f)) {
             val data =
                 BudgetData(
@@ -129,9 +132,10 @@ class UiTest {
                 onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
             }
             onNodeWithTag("monthly-cashflow").assertTextEquals("−$1.00 this month")
-            onNodeWithTag("home-budget-status", useUnmergedTree = true)
-                .assertTextContains("$0.50 over your planned limits.")
-            onNodeWithText("Review budgets").assertExists()
+            onNodeWithText("Save & Grow").assertDoesNotExist()
+            onNodeWithText("Time to rebalance").assertDoesNotExist()
+            onNodeWithTag("home-transactions").assertExists()
+            onNodeWithText("Groceries").assertExists()
             save("kotlin-home-over-budget.png")
         }
 

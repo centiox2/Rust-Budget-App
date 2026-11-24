@@ -2,7 +2,7 @@
 
 A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
 
-The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Version 2.1 replaces static background gradients with an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
+The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Home uses a solid near-black background with transactions displayed directly on the page. Other screens use an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
 
 ## Features
 
@@ -16,7 +16,7 @@ The visual direction follows the supplied reference with dark surfaces, forest-g
 - Backup compatibility with the previous Verdant Rust/Tauri implementation.
 - Optional sample data, kept separate from a new empty ledger.
 - Comma or dot decimal keyboard input, large-text layouts, adaptive money labels, and retry-safe forms that preserve drafts on failed writes.
-- Home action tiles are fully tappable; home budget and transaction links always open the current month. The budget banner reports planned-category overspending and opens the overview instead of unexpectedly opening an editor.
+- Home action tiles are fully tappable, and its budget action and transaction link always open the current month. Home has no promotional banner or outer transaction card.
 
 See [custom interface](docs/design-system.md) and [liquid background](docs/liquid-background.md) implementation notes.
 

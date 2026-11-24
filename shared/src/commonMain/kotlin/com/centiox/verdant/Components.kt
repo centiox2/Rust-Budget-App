@@ -29,6 +29,7 @@ import org.jetbrains.compose.resources.painterResource
 val Lime = Color(0xFF9BD16B)
 val Muted = Color(0xFFAEB6A7)
 val Card = Color(0xFF191A18)
+val HomeBackground = Color(0xFF0D110D)
 val Line = Color(0xFF2B2D29)
 val Orange = Color(0xFFDC994A)
 
@@ -134,9 +135,14 @@ fun Panel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> 
 }
 
 @Composable
-fun SectionHeader(title: String, action: String? = null, onAction: () -> Unit = {}) {
+fun SectionHeader(
+    title: String,
+    action: String? = null,
+    onAction: () -> Unit = {},
+    horizontalPadding: Dp = 16.dp,
+) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = horizontalPadding, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
@@ -198,6 +204,7 @@ fun EntryRows(
     currency: String,
     onEdit: (Entry) -> Unit,
     modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 14.dp,
 ) {
     Column(modifier) {
         entries.forEachIndexed { index, entry ->
@@ -207,7 +214,7 @@ fun EntryRows(
             Row(
                 Modifier.fillMaxWidth()
                     .clickable { onEdit(entry) }
-                    .padding(horizontal = 14.dp, vertical = 17.dp),
+                    .padding(horizontal = horizontalPadding, vertical = 17.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
