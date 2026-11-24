@@ -41,7 +41,9 @@ class ReleaseFlowTest {
 
     private fun scrollClick(selector: BySelector) {
         repeat(7) {
-            val found = device.findObject(selector)
+            // A page transition may not emit accessibility events on older Android versions.
+            // Wait for its content before moving the scroll position past a visible target.
+            val found = device.wait(Until.findObject(selector), 1_500)
             if (found != null && found.visibleBounds.height() > 10) {
                 found.click()
                 device.waitForIdle()
@@ -140,6 +142,7 @@ class ReleaseFlowTest {
         click(By.desc("Home"))
         assertEquals(balance, amount(node(By.res("total-balance")).text))
         click(By.desc("Settings"))
+        node(By.text("Make it yours."))
         scrollClick(By.desc("Ocean background"))
         node(By.text("#268CBA"))
         scrollClick(By.res("background-motion"))
