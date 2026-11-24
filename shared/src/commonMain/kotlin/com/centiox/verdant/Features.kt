@@ -265,7 +265,7 @@ fun validateFeatures(d: BudgetData) {
         "Invalid templates."
     }
     d.templates.forEach {
-        require(it.name.isNotBlank() && it.name.length <= 60) { "Name your template." }
+        require(it.name.isNotBlank() && it.name.length <= 100) { "Name your template." }
         entry(it.entry)
     }
     require(d.deleted.size <= 200 && d.deleted.all { validDate(it.deletedOn) }) {

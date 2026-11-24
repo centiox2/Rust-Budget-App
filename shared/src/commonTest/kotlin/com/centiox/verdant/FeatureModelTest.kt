@@ -18,6 +18,17 @@ class FeatureModelTest {
     ) = Entry(id, "A purchase", amount, type, category, date, account, target, splits, fee = fee)
 
     @Test
+    fun templatesAcceptTheSameTitleLengthAsTransactions() {
+        val entry = row().copy(title = "A".repeat(100))
+        val data =
+            BudgetData(
+                transactions = listOf(entry),
+                templates = listOf(EntryTemplate(name = entry.title, entry = entry)),
+            )
+        assertEquals(data, decodeBackup(encodeBackup(data)))
+    }
+
+    @Test
     fun draftsCannotResurrectCompletedRecordsOrLoseChangedTransfers() {
         val entry = row(type = "transfer", target = "cash")
         val data =

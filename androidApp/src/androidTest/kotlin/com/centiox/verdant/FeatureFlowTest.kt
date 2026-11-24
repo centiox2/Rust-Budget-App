@@ -50,11 +50,13 @@ class FeatureFlowTest {
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
         }
-        // The widget launches the same explicit intent, without copying any private ledger data.
+        // Exercise shortcut extras without copying private ledger data. Keep the launch filter:
+        // ActivityScenario identifies lifecycle callbacks by action/category, even after
+        // onNewIntent.
         compose.runOnUiThread {
             compose.activity.startActivity(
-                Intent(compose.activity, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                Intent(compose.activity.intent)
+                    .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     .putExtra("quickAdd", "expense")
             )
         }
@@ -79,8 +81,8 @@ class FeatureFlowTest {
         Assert.assertNull("Saved records must not return as unfinished drafts", saved.entryDraft)
         compose.runOnUiThread {
             compose.activity.startActivity(
-                Intent(compose.activity, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                Intent(compose.activity.intent)
+                    .setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     .putExtra("openTools", "Fees")
             )
         }

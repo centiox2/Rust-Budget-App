@@ -155,10 +155,11 @@ fun App(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    snackbar.showSnackbar(e.message ?: "Choose a valid backup.")
-                } finally {
                     onExternalBackupConsumed()
+                    scope.launch { snackbar.showSnackbar(e.message ?: "Choose a valid backup.") }
                 }
+                // Keep the platform payload until confirmation/cancellation so activity
+                // recreation can rebuild the preview without putting a ledger in saved state.
             }
         }
         fun importBackup(kind: String = "backup") {
@@ -759,6 +760,7 @@ fun App(
                 {
                     portability = null
                     importRaw = null
+                    onExternalBackupConsumed()
                 },
             ) { result ->
                 if (portability == "export") onExport(result)
@@ -776,12 +778,14 @@ fun App(
                 {
                     portability = null
                     importRaw = null
+                    onExternalBackupConsumed()
                 },
             ) { entries ->
                 repository.update { it.copy(transactions = it.transactions + entries) }
                 workspace = null
                 portability = null
                 importRaw = null
+                onExternalBackupConsumed()
                 showTransactions()
             }
     }
