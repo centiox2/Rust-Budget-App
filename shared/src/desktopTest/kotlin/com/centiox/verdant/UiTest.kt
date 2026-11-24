@@ -61,6 +61,155 @@ class UiTest {
         }
     }
 
+    private fun SkikoComposeUiTest.motionFrame(name: String): ByteArray {
+        waitForIdle()
+        val bytes =
+            org.jetbrains.skia.Image.makeFromBitmap(
+                    onAllNodes(isRoot()).onLast().captureToImage().asSkiaBitmap()
+                )
+                .encodeToData(EncodedImageFormat.PNG)!!
+                .bytes
+        val directory = File(System.getProperty("verdant.screenshots"))
+        directory.mkdirs()
+        File(directory, name).writeBytes(bytes)
+        return bytes
+    }
+
+    @Test
+    fun pageMotionHasIntermediateFramesAndSettles() =
+        runSkikoComposeUiTest(size = Size(360f, 760f)) {
+            setContent {
+                App(
+                    BudgetRepository(
+                        storage(sampleData("Alex", "USD").copy(animateBackground = false))
+                    ),
+                    {},
+                    {},
+                )
+            }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            mainClock.autoAdvance = false
+            mainClock.advanceTimeBy(1000)
+            onNodeWithContentDescription("Settings").performClick()
+            mainClock.advanceTimeByFrame()
+            val start = motionFrame("motion-page-start.png")
+            mainClock.advanceTimeBy(96)
+            val middle = motionFrame("motion-page-middle.png")
+            mainClock.advanceTimeBy(600)
+            val end = motionFrame("motion-page-settled.png")
+            mainClock.advanceTimeBy(400)
+            val still = motionFrame("motion-page-still.png")
+            assertFalse(
+                start.contentEquals(middle),
+                "Page transition must render intermediate frames",
+            )
+            assertFalse(
+                middle.contentEquals(end),
+                "Transition must complete beyond its middle frame",
+            )
+            assertTrue(
+                end.contentEquals(still),
+                "Completed transition must settle without residual movement",
+            )
+            onNodeWithText("Make it yours.").assertIsDisplayed()
+        }
+
+    @Test
+    fun spendingChartRevealsSmoothlyAndSettles() =
+        runSkikoComposeUiTest(size = Size(360f, 200f)) {
+            mainClock.autoAdvance = false
+            setContent {
+                SpendingLine(
+                    listOf(10L, 80L, 35L, 90L, 45L, 60L),
+                    androidx.compose.ui.Modifier.fillMaxSize(),
+                )
+            }
+            mainClock.advanceTimeByFrame()
+            val start = motionFrame("motion-chart-start.png")
+            mainClock.advanceTimeBy(240)
+            val middle = motionFrame("motion-chart-middle.png")
+            mainClock.advanceTimeBy(1000)
+            val end = motionFrame("motion-chart-settled.png")
+            mainClock.advanceTimeBy(400)
+            val still = motionFrame("motion-chart-still.png")
+            assertFalse(start.contentEquals(middle))
+            assertFalse(middle.contentEquals(end))
+            assertTrue(end.contentEquals(still))
+        }
+
+    @Test
+    fun allPagesScrollAtPhoneAndLargeTextSizes() {
+        for (scale in listOf(1f, 1.4f)) runSkikoComposeUiTest(
+            size = Size(360f, 760f),
+            density = Density(1f, scale),
+        ) {
+            val data =
+                sampleData("Alex", "KES")
+                    .copy(
+                        budgets = mapOf(currentMonth() to categories.associateWith { 50000L }),
+                        transactions =
+                            (0 until 1000).map {
+                                Entry(
+                                    "scroll-$it",
+                                    "Record $it",
+                                    1500L + it,
+                                    "expense",
+                                    categories[it % categories.size],
+                                    today().toString(),
+                                )
+                            },
+                    )
+            setContent { App(BudgetRepository(storage(data)), {}, {}) }
+            waitUntil(timeoutMillis = 10000) {
+                onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+            }
+            fun assertAboveNavigation(node: SemanticsNodeInteraction) {
+                node.assertIsDisplayed()
+                val bounds = node.fetchSemanticsNode().boundsInRoot
+                val nav = onNodeWithContentDescription("Home").fetchSemanticsNode().boundsInRoot
+                assertTrue(
+                    bounds.bottom <= nav.top,
+                    "Last content must remain above navigation: $bounds / $nav",
+                )
+            }
+            onNodeWithContentDescription("Transactions").performClick()
+            save("coherent-activity-$scale.png")
+            repeat(3) { onNodeWithTag("transaction-list").performTouchInput { swipeUp() } }
+            assertTrue(onAllNodesWithTag("transaction-scroll-999").fetchSemanticsNodes().isEmpty())
+            onNodeWithTag("transaction-list").performScrollToNode(hasText("Record 0"))
+            assertAboveNavigation(onNodeWithText("Record 0"))
+            save("coherent-activity-bottom-$scale.png")
+            onNodeWithTag("transaction-list").performScrollToIndex(0)
+            onNodeWithTag("transaction-search").assertIsDisplayed()
+            onNodeWithContentDescription("Budgets").performClick()
+            save("coherent-budgets-$scale.png")
+            repeat(2) { onNodeWithTag("budgets-scroll").performTouchInput { swipeUp() } }
+            onNodeWithText("Other").performScrollTo()
+            assertAboveNavigation(onNodeWithText("Other"))
+            save("coherent-budgets-bottom-$scale.png")
+            onNodeWithText("MONTHLY SPENDING PLAN").performScrollTo().assertIsDisplayed()
+            onNodeWithContentDescription("Analytics").performClick()
+            save("coherent-insights-$scale.png")
+            repeat(2) { onNodeWithTag("analytics-scroll").performTouchInput { swipeUp() } }
+            onNodeWithText("Record 997").performScrollTo()
+            assertAboveNavigation(onNodeWithText("Record 997"))
+            save("coherent-insights-bottom-$scale.png")
+            onNodeWithTag("analytics-total").performScrollTo().assertIsDisplayed()
+            onNodeWithContentDescription("Settings").performClick()
+            save("coherent-settings-$scale.png")
+            repeat(2) { onNodeWithTag("settings-scroll").performTouchInput { swipeUp() } }
+            onNodeWithTag("settings-footer").performScrollTo()
+            assertAboveNavigation(onNodeWithTag("settings-footer"))
+            save("coherent-settings-bottom-$scale.png")
+            onNodeWithText("Reset all data").performScrollTo().performClick()
+            onNodeWithText("Cancel").performClick()
+            onNodeWithText("Make it yours.").performScrollTo().assertIsDisplayed()
+            save("coherent-settings-return-$scale.png")
+        }
+    }
+
     @Test
     fun homeLinksUseCurrentMonthAndActionLabelsWork() =
         runSkikoComposeUiTest(size = Size(393f, 900f)) {

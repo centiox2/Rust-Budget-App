@@ -2,14 +2,14 @@
 
 A native Compose Multiplatform budget app, rebuilt entirely in Kotlin. Shared screens, financial calculations, validation, and repository code run on Android and desktop JVM. Android and desktop have thin platform-specific entry points for private storage and native file pickers. There is no Rust, Tauri, JavaScript, or WebView runtime in this implementation.
 
-The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. Home keeps the liquid backdrop in its balance header; transactions appear directly on a solid near-black surface below it. Other screens use an animated liquid mesh inspired by the supplied Music App reference. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
+The visual direction follows the supplied reference with dark surfaces, forest-green accents, gold coin artwork, Poppins typography, circular actions, and rounded analytics cards. All pages share Home's visual structure: a restrained liquid header above solid near-black content. Activity uses open transaction rows, Budgets uses category progress rows, Insights has a single spending chart and category breakdown, and Settings uses flat sections. Settings provides six presets, a custom hex/RGB picker, live previews, and a saved animation toggle. All controls, navigation, dialogs, sheets, icons, and the calendar are custom Compose Foundation implementations; Material 3 and Material icon dependencies have been removed.
 
 ## Features
 
 - Income and expense creation, editing, deletion, categories, and dates.
 - Lifetime balance and truthful monthly cash flow, clearable search, exact category filters, preserved navigation state, and a quick return to the current month.
 - Monthly category budgets, copying last month's limits into an unplanned month, and over-budget indicators.
-- Daily spending charts, category breakdowns, and savings percentages.
+- Daily spending charts, category breakdowns, income/spending ratios, and net cash flow.
 - USD, KES, EUR, GBP, and INR. Currency selection changes the display symbol without converting amounts.
 - Local storage with atomic writes and Keystore-backed encryption on Android. Failed writes leave the active ledger unchanged.
 - Native JSON backup export and restore with validation and confirmation before replacement.
@@ -17,6 +17,8 @@ The visual direction follows the supplied reference with dark surfaces, forest-g
 - Optional sample data, kept separate from a new empty ledger.
 - Comma or dot decimal keyboard input, large-text layouts, adaptive money labels, and retry-safe forms that preserve drafts on failed writes.
 - Home action tiles are fully tappable, and its budget action and transaction link always open the current month. Home has no promotional banner or outer transaction card.
+
+Page transitions, selection colors, button presses, chart reveals, progress bars, and toast messages use restrained animations. Scroll tests cover all pages at 360 × 760 with normal and 1.4× text, a 1,000-entry history, end-of-page reachability above navigation, and native keyboard/profile flows.
 
 See [custom interface](docs/design-system.md) and [liquid background](docs/liquid-background.md) implementation notes.
 

@@ -1,9 +1,11 @@
 package com.centiox.verdant
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.*
 import androidx.compose.foundation.shape.*
@@ -92,12 +94,30 @@ fun Button(
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 13.dp),
     content: @Composable RowScope.() -> Unit,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by
+        animateFloatAsState(
+            if (pressed) .98f else 1f,
+            spring(dampingRatio = .82f, stiffness = 700f),
+            label = "Button press",
+        )
     Row(
         modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(shape)
             .background(if (enabled) containerColor else containerColor.copy(alpha = .4f))
             .then(if (border != null) Modifier.border(border, shape) else Modifier)
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            )
             .heightIn(min = 48.dp)
             .padding(contentPadding),
         horizontalArrangement = Arrangement.Center,
@@ -246,15 +266,23 @@ fun FilterChip(
     enabled: Boolean = true,
     leadingIcon: (@Composable () -> Unit)? = null,
 ) {
+    val fill by
+        animateColorAsState(
+            if (selected) Lime.copy(alpha = .11f) else Color.Transparent,
+            tween(180),
+            label = "Selection fill",
+        )
+    val outline by
+        animateColorAsState(
+            if (selected) Lime.copy(alpha = .6f) else Color.White.copy(alpha = .14f),
+            tween(180),
+            label = "Selection border",
+        )
     Row(
         modifier
             .clip(RoundedCornerShape(13.dp))
-            .background(if (selected) Lime.copy(alpha = .11f) else Color.Transparent)
-            .border(
-                1.dp,
-                if (selected) Lime.copy(alpha = .6f) else Color.White.copy(alpha = .14f),
-                RoundedCornerShape(13.dp),
-            )
+            .background(fill)
+            .border(1.dp, outline, RoundedCornerShape(13.dp))
             .selectable(selected, enabled = enabled, role = Role.Tab, onClick = onClick)
             .heightIn(min = 44.dp)
             .padding(horizontal = 13.dp, vertical = 10.dp),
@@ -590,11 +618,15 @@ class SnackbarHostState {
     var message by mutableStateOf<String?>(null)
         private set
 
+    var lastMessage by mutableStateOf("")
+        private set
+
     private val mutex = Mutex()
 
     suspend fun showSnackbar(value: String) =
         mutex.withLock {
             try {
+                lastMessage = value
                 message = value
                 delay(2800)
             } finally {
@@ -605,10 +637,14 @@ class SnackbarHostState {
 
 @Composable
 fun SnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
-    state.message?.let { message ->
+    AnimatedVisibility(
+        state.message != null,
+        modifier,
+        enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 3 },
+        exit = fadeOut(tween(140)),
+    ) {
         Row(
-            modifier
-                .clip(RoundedCornerShape(16.dp))
+            Modifier.clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF17241C))
                 .border(1.dp, Color(0xFF344D35), RoundedCornerShape(16.dp))
                 .padding(15.dp)
@@ -617,7 +653,7 @@ fun SnackbarHost(state: SnackbarHostState, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(Icons.Outlined.Info, null, Modifier.size(18.dp), Lime)
-            Text(message, Modifier.weight(1f), fontSize = 12.sp)
+            Text(state.lastMessage, Modifier.weight(1f), fontSize = 12.sp)
         }
     }
 }
@@ -644,27 +680,33 @@ fun BottomNavigation(selected: Page, onSelect: (Page) -> Unit) {
                     Page.Analytics -> "Insights"
                     else -> page.label
                 }
+            val tint by
+                animateColorAsState(
+                    if (page == selected) Lime else Muted,
+                    tween(180),
+                    label = "Tab tint",
+                )
+            val fill by
+                animateColorAsState(
+                    if (page == selected) Color.White.copy(alpha = .035f) else Color.Transparent,
+                    tween(200),
+                    label = "Tab fill",
+                )
             Column(
                 Modifier.weight(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (page == selected) Color.White.copy(alpha = .035f) else Color.Transparent
-                    )
+                    .background(fill)
                     .selectable(page == selected, role = Role.Tab, onClick = { onSelect(page) })
                     .semantics { contentDescription = page.label }
                     .padding(vertical = 9.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Icon(icon, null, Modifier.size(21.dp), if (page == selected) Lime else Muted)
+                Icon(icon, null, Modifier.size(21.dp), tint)
                 BasicText(
                     label,
                     Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-                    style =
-                        LocalTextStyle.current.copy(
-                            color = if (page == selected) Lime else Muted,
-                            textAlign = TextAlign.Center,
-                        ),
+                    style = LocalTextStyle.current.copy(color = tint, textAlign = TextAlign.Center),
                     maxLines = 1,
                     autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 10.sp),
                 )

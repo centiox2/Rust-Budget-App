@@ -1,5 +1,6 @@
 package com.centiox.verdant
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -203,7 +204,7 @@ fun SetupScreen(busy: Boolean, onStart: (String, String, Boolean) -> Unit) {
 fun AppHeader(page: Page, data: BudgetData, onPage: (Page) -> Unit) {
     Row(
         Modifier.fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = if (page == Page.Home) 18.dp else 23.dp),
+            .padding(horizontal = 22.dp, vertical = if (page == Page.Home) 18.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -243,10 +244,37 @@ fun AppHeader(page: Page, data: BudgetData, onPage: (Page) -> Unit) {
             )
         } else {
             RoundAction(Icons.Outlined.ArrowBack, "Back to home", { onPage(Page.Home) })
-            Text(page.label, Modifier.weight(1f), fontSize = 16.sp, textAlign = TextAlign.Center)
+            Text(
+                when (page) {
+                    Page.Transactions -> "Activity"
+                    Page.Analytics -> "Insights"
+                    else -> page.label
+                },
+                Modifier.weight(1f),
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center,
+            )
             if (page != Page.Settings)
                 RoundAction(Icons.Outlined.Tune, "Open settings", { onPage(Page.Settings) })
             else Spacer(Modifier.size(48.dp))
+        }
+    }
+}
+
+@Composable
+fun PageHeader(
+    page: Page,
+    data: BudgetData,
+    month: String,
+    onPage: (Page) -> Unit,
+    onMonth: (String) -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))) {
+        LiquidBackground(data.backgroundColor, data.animateBackground, Modifier.matchParentSize())
+        Column(Modifier.fillMaxWidth()) {
+            AppHeader(page, data, onPage)
+            if (page != Page.Settings) MonthPicker(month, onMonth)
+            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -432,7 +460,7 @@ fun TransactionsScreen(
         }
     LazyColumn(
         Modifier.fillMaxSize().padding(horizontal = 21.dp).testTag("transaction-list"),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp),
     ) {
         item {
             Row(
@@ -498,7 +526,7 @@ fun TransactionsScreen(
         }
         if (rows.isEmpty())
             item {
-                Panel {
+                Column {
                     EmptyState(
                         "No transactions found",
                         if (filtered) "Clear your filters or try another month."
@@ -510,20 +538,14 @@ fun TransactionsScreen(
                 }
             }
         itemsIndexed(rows, key = { _, entry -> entry.id }) { index, entry ->
-            val shape =
-                RoundedCornerShape(
-                    topStart = if (index == 0) 24.dp else 0.dp,
-                    topEnd = if (index == 0) 24.dp else 0.dp,
-                    bottomStart = if (index == rows.lastIndex) 24.dp else 0.dp,
-                    bottomEnd = if (index == rows.lastIndex) 24.dp else 0.dp,
-                )
-            Column(Modifier.clip(shape).background(Card)) {
+            Column {
                 if (index > 0) HorizontalDivider(color = Line, thickness = .5.dp)
                 EntryRows(
                     listOf(entry),
                     data.currency,
                     onEdit,
                     Modifier.testTag("transaction-${entry.id}"),
+                    horizontalPadding = 0.dp,
                 )
             }
         }
@@ -541,105 +563,124 @@ fun BudgetsScreen(
     val totals = totals(data, month)
     val total = limits.values.sum()
     val spent = limits.keys.sumOf { totals.byCategory[it] ?: 0 }
-    val columns =
-        if (
-            LocalDensity.current.fontScale >= 1.3f ||
-                limits.any { (category, limit) ->
-                    money(limit, data.currency).length > 16 ||
-                        money(totals.byCategory[category] ?: 0, data.currency).length > 16
-                }
-        )
-            1
-        else 2
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 21.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .testTag("budgets-scroll")
+            .padding(horizontal = 21.dp)
+            .padding(top = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        Panel {
-            Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(
-                    "MONTHLY SPENDING PLAN",
-                    fontSize = 9.sp,
-                    letterSpacing = 1.6.sp,
-                    color = Muted,
-                )
-                AmountText(
-                    money(spent, data.currency),
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 29.sp,
-                )
-                Text("of ${money(total,data.currency)} planned", fontSize = 12.sp, color = Muted)
-                Progress(if (total > 0) spent.toFloat() / total else 0f)
-                Text(
-                    if (total > 0)
-                        "${money((total-spent).coerceAtLeast(0),data.currency)} remaining in planned categories"
-                    else "Give every little bit a direction.",
-                    fontSize = 11.sp,
-                    color = Muted,
-                )
-            }
-        }
-        SectionHeader("Your categories", "Set limits", onSet)
-        if (limits.isEmpty())
-            EmptyState(
-                "Plan a little. Breathe easier.",
-                "Set a limit for groceries, transport, or anything else.",
-                action = "Create a budget",
-                onAction = onSet,
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("MONTHLY SPENDING PLAN", fontSize = 9.sp, letterSpacing = 1.6.sp, color = Muted)
+            AmountText(money(spent, data.currency), Modifier.fillMaxWidth(), fontSize = 32.sp)
+            Text("of ${money(total, data.currency)} planned", fontSize = 12.sp, color = Muted)
+            Progress(
+                if (total > 0) spent.toFloat() / total else 0f,
+                color = if (spent > total && total > 0) Orange else Lime,
             )
-        if (limits.isEmpty() && onCopyPrevious != null)
-            OutlinedButton(onCopyPrevious, Modifier.fillMaxWidth()) {
-                Icon(Icons.Outlined.ContentCopy, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Use last month's limits", fontSize = 12.sp)
-            }
-        limits.entries.chunked(columns).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
-                pair.forEach { (category, limit) ->
-                    val used = totals.byCategory[category] ?: 0
-                    Panel(Modifier.weight(1f).clickable(onClick = onSet)) {
-                        Column(
-                            Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            Icon(
-                                categoryIcon(category),
-                                null,
-                                tint = categoryColor(category),
-                                modifier = Modifier.size(25.dp),
-                            )
-                            Text(category, fontSize = 14.sp, minLines = 2, maxLines = 2)
-                            AmountText(
-                                money(used, data.currency),
-                                modifier =
-                                    Modifier.fillMaxWidth().testTag("budget-spent-$category"),
-                                fontSize = 19.sp,
-                            )
-                            Text(
-                                "of ${money(limit,data.currency)}",
-                                fontSize = 10.sp,
-                                color = Muted,
-                            )
-                            Progress(
-                                used.toFloat() / limit,
-                                color = if (used > limit) Orange else Lime,
-                            )
-                            Text(
-                                "${money(kotlin.math.abs(limit-used),data.currency)} ${if(used>limit)"over limit" else "left to spend"}",
-                                fontSize = 10.sp,
-                                color = if (used > limit) Orange else Muted,
-                            )
-                        }
-                    }
+            Text(
+                if (total == 0L) "Give every little bit a direction."
+                else if (spent > total)
+                    "${money(spent - total, data.currency)} over your planned limits"
+                else "${money(total - spent, data.currency)} remaining in planned categories",
+                fontSize = 11.sp,
+                color = if (spent > total && total > 0) Orange else Muted,
+            )
+        }
+        HorizontalDivider(thickness = .5.dp)
+        Column {
+            SectionHeader("Your categories", "Set limits", onSet, horizontalPadding = 0.dp)
+            if (limits.isEmpty())
+                EmptyState(
+                    "Plan a little. Breathe easier.",
+                    "Set a limit for groceries, transport, or anything else.",
+                    action = "Create a budget",
+                    onAction = onSet,
+                )
+            if (limits.isEmpty() && onCopyPrevious != null)
+                OutlinedButton(onCopyPrevious, Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.ContentCopy, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Use last month's limits", fontSize = 12.sp)
                 }
-                if (pair.size == 1 && columns == 2) Spacer(Modifier.weight(1f))
+            limits.forEach { (category, limit) ->
+                val used = totals.byCategory[category] ?: 0
+                Column(
+                    Modifier.fillMaxWidth()
+                        .testTag("budget-category-$category")
+                        .clickable(role = Role.Button, onClick = onSet)
+                        .padding(vertical = 15.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    val stacked =
+                        LocalDensity.current.fontScale >= 1.3f ||
+                            money(used, data.currency).length > 16 ||
+                            money(limit, data.currency).length > 16
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CategoryMark(category)
+                        Column(
+                            Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            Text(category, fontSize = 14.sp)
+                            if (!stacked)
+                                AmountText(
+                                    money(used, data.currency),
+                                    Modifier.fillMaxWidth().testTag("budget-spent-$category"),
+                                    fontSize = 20.sp,
+                                )
+                        }
+                        if (!stacked)
+                            Column(
+                                Modifier.width(100.dp),
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(5.dp),
+                            ) {
+                                Text("Planned", fontSize = 10.sp, color = Muted)
+                                AmountText(
+                                    money(limit, data.currency),
+                                    Modifier.widthIn(max = 100.dp),
+                                    fontSize = 12.sp,
+                                    color = Muted,
+                                )
+                            }
+                        Icon(Icons.Outlined.ChevronRight, null, Modifier.size(16.dp), Muted)
+                    }
+                    if (stacked) {
+                        AmountText(
+                            money(used, data.currency),
+                            Modifier.fillMaxWidth().testTag("budget-spent-$category"),
+                            fontSize = 22.sp,
+                        )
+                        Text("of ${money(limit, data.currency)}", fontSize = 11.sp, color = Muted)
+                    }
+                    Progress(used.toFloat() / limit, color = if (used > limit) Orange else Lime)
+                    Text(
+                        "${money(kotlin.math.abs(limit - used), data.currency)} ${if (used > limit) "over limit" else "left to spend"}",
+                        fontSize = 11.sp,
+                        color = if (used > limit) Orange else Muted,
+                    )
+                }
+                HorizontalDivider(thickness = .5.dp)
             }
         }
-        Spacer(Modifier.height(12.dp))
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryMark(category: String) {
+    Box(
+        Modifier.size(38.dp).clip(CircleShape).background(Color.White.copy(alpha = .055f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(categoryIcon(category), null, Modifier.size(20.dp), categoryColor(category))
+    }
+}
+
 @Composable
 fun AnalyticsScreen(
     data: BudgetData,
@@ -652,116 +693,99 @@ fun AnalyticsScreen(
     val expenses = data.transactions.filter { it.type == "expense" && it.date.startsWith(month) }
     val daily = dailyValues(expenses, month)
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 21.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        Modifier.fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .testTag("analytics-scroll")
+            .padding(horizontal = 21.dp)
+            .padding(top = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        Panel {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Spending Overview",
-                        Modifier.weight(1f),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Box(
-                        Modifier.size(43.dp).clip(CircleShape).background(Color(0xFF2A2C27)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.NorthEast, null, Modifier.size(23.dp))
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Last Entry", fontSize = 13.sp, color = Muted)
-                        Text(expenses.maxOfOrNull { it.date } ?: "No entries yet", fontSize = 11.sp)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            if (totals.income > 0)
-                                "${(totals.spent*100.0/totals.income).roundToInt()}%"
-                            else "—",
-                            fontSize = 29.sp,
-                        )
-                        Text("of income spent", fontSize = 8.sp, color = Muted)
-                    }
-                }
-                Column {
-                    Text("Total spent this month", fontSize = 10.sp, color = Muted)
-                    AmountText(
-                        money(totals.spent, data.currency),
-                        fontSize = 27.sp,
-                        modifier = Modifier.fillMaxWidth().testTag("analytics-total"),
-                    )
-                }
-                SpendingLine(daily, Modifier.fillMaxWidth().height(140.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    (0..4)
-                        .map { (daily.lastIndex * it / 4.0).roundToInt() + 1 }
-                        .forEach { Text(it.toString(), fontSize = 10.sp, color = Muted) }
-                }
-                Text(
-                    "Daily expenses · ${monthLabel(month)}",
-                    fontSize = 9.sp,
-                    color = Muted,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Spending Overview", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text("Total spent this month", fontSize = 11.sp, color = Muted)
+            AmountText(
+                money(totals.spent, data.currency),
+                Modifier.fillMaxWidth().testTag("analytics-total"),
+                fontSize = 32.sp,
+            )
+            Text(
+                if (totals.income > 0)
+                    "${(totals.spent * 100.0 / totals.income).roundToInt()}% of income spent"
+                else "Add income to see your spending ratio",
+                fontSize = 11.sp,
+                color = Muted,
+            )
+            SpendingLine(daily, Modifier.fillMaxWidth().height(140.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                (0..4)
+                    .map { (daily.lastIndex * it / 4.0).roundToInt() + 1 }
+                    .forEach { Text(it.toString(), fontSize = 10.sp, color = Muted) }
+            }
+            Text("Daily expenses · ${monthLabel(month)}", fontSize = 10.sp, color = Muted)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Income", fontSize = 11.sp, color = Muted)
+                AmountText(
+                    money(totals.income, data.currency),
+                    Modifier.fillMaxWidth(),
+                    fontSize = 18.sp,
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Net this month", fontSize = 11.sp, color = Muted)
+                AmountText(
+                    money(totals.income - totals.spent, data.currency),
+                    Modifier.fillMaxWidth(),
+                    fontSize = 18.sp,
+                    color = if (totals.income < totals.spent) Orange else Lime,
                 )
             }
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(13.dp),
-            verticalArrangement = Arrangement.spacedBy(13.dp),
-            maxItemsInEachRow =
-                if (
-                    LocalDensity.current.fontScale >= 1.3f ||
-                        listOf("Groceries", "Utilities").any {
-                            money(totals.byCategory[it] ?: 0, data.currency).length > 16
+        HorizontalDivider(thickness = .5.dp)
+        if (expenses.isNotEmpty())
+            Column {
+                SectionHeader("Where it went", horizontalPadding = 0.dp)
+                categories
+                    .filter { (totals.byCategory[it] ?: 0) > 0 }
+                    .sortedByDescending { totals.byCategory[it] }
+                    .forEach { category ->
+                        val amount = totals.byCategory[category] ?: 0
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .testTag("analytics-category-$category")
+                                .clickable(role = Role.Button) { onCategory(category) }
+                                .padding(vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                CategoryMark(category)
+                                Text(category, Modifier.weight(1f), fontSize = 13.sp)
+                                Text(
+                                    "${(amount * 100.0 / totals.spent).roundToInt()}%",
+                                    fontSize = 12.sp,
+                                    color = Muted,
+                                )
+                                Icon(Icons.Outlined.ChevronRight, null, Modifier.size(16.dp), Muted)
+                            }
+                            AmountText(
+                                money(amount, data.currency),
+                                Modifier.fillMaxWidth(),
+                                fontSize = 18.sp,
+                            )
+                            Progress(
+                                amount.toFloat() / totals.spent,
+                                color = categoryColor(category),
+                            )
                         }
-                )
-                    1
-                else 2,
-        ) {
-            listOf("Groceries", "Utilities").forEach { category ->
-                val amount = totals.byCategory[category] ?: 0
-                val limit = data.budgets[month]?.get(category)
-                val percent =
-                    if (limit != null) (amount * 100.0 / limit).roundToInt()
-                    else if (totals.spent > 0) (amount * 100.0 / totals.spent).roundToInt() else 0
-                val color = if (category == "Groceries") Color(0xFFBF7847) else Color(0xFFB6CB4C)
-                Panel(Modifier.weight(1f).clickable { onCategory(category) }) {
-                    Column(
-                        Modifier.padding(13.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(category, Modifier.weight(1f), fontSize = 12.sp)
-                            Text("Monthly", fontSize = 8.sp, color = color)
-                        }
-                        val values =
-                            dailyValues(expenses.filter { it.category == category }, month)
-                                .chunked(5)
-                                .map { it.sum() }
-                        SpendingLine(values, Modifier.fillMaxWidth().height(68.dp), color, false)
-                        Text("$percent%", fontSize = 27.sp)
-                        AmountText(
-                            money(amount, data.currency),
-                            Modifier.fillMaxWidth(),
-                            fontSize = 12.sp,
-                            color = Muted,
-                            weight = FontWeight.Normal,
-                        )
-                        Text(
-                            if (limit != null) "of category budget" else "of monthly spending",
-                            fontSize = 8.sp,
-                            color = Muted,
-                        )
+                        HorizontalDivider(thickness = .5.dp)
                     }
-                }
             }
-        }
-        Panel {
-            SectionHeader("Spending Transactions", "See all", onAll)
+        Column(Modifier.testTag("analytics-recent")) {
+            SectionHeader("Spending Transactions", "See all", onAll, horizontalPadding = 0.dp)
             if (expenses.isEmpty())
                 EmptyState(
                     "Your story starts here.",
@@ -773,35 +797,9 @@ fun AnalyticsScreen(
                     expenses.asReversed().sortedByDescending { it.date }.take(3),
                     data.currency,
                     onEdit,
+                    horizontalPadding = 0.dp,
                 )
         }
-        if (expenses.isNotEmpty())
-            Panel {
-                SectionHeader("Where it went")
-                categories
-                    .filter { (totals.byCategory[it] ?: 0) > 0 }
-                    .sortedByDescending { totals.byCategory[it] }
-                    .forEach { category ->
-                        val amount = totals.byCategory[category] ?: 0
-                        Column(
-                            Modifier.fillMaxWidth()
-                                .clickable { onCategory(category) }
-                                .padding(horizontal = 17.dp, vertical = 13.dp)
-                        ) {
-                            Row {
-                                Text(category, Modifier.weight(1f), fontSize = 12.sp)
-                                Text(money(amount, data.currency), fontSize = 12.sp)
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            Progress(
-                                amount.toFloat() / totals.spent,
-                                color = categoryColor(category),
-                            )
-                        }
-                    }
-                Spacer(Modifier.height(8.dp))
-            }
-        Spacer(Modifier.height(10.dp))
     }
 }
 
@@ -820,96 +818,96 @@ fun SettingsScreen(
     Column(
         Modifier.fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .testTag("settings-scroll")
             .imePadding()
-            .padding(horizontal = 21.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(horizontal = 21.dp)
+            .padding(top = 24.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(26.dp),
     ) {
         AppearancePanel(data, busy, onAppearance)
-        Panel {
-            Column(Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(17.dp)) {
-                Text("Your profile", fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    name,
-                    { name = it.take(50) },
-                    enabled = !busy,
-                    singleLine = true,
-                    label = { Text("Name") },
-                    shape = RoundedCornerShape(13.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ChoiceField(
-                    "Display currency",
-                    currency,
-                    currencies,
-                    { currency = it },
-                    enabled = !busy,
-                )
-                Text(
-                    "Changing currency changes the symbol only. Amounts are not converted.",
-                    fontSize = 10.sp,
-                    color = Muted,
-                )
-                PrimaryButton(
-                    "Save preferences",
-                    { onSave(name.trim().ifEmpty { "Friend" }, currency) },
-                    enabled = !busy,
-                )
-            }
+        HorizontalDivider(thickness = .5.dp)
+        Column(
+            Modifier.testTag("settings-profile"),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text("Your profile", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                name,
+                { name = it.take(50) },
+                enabled = !busy,
+                singleLine = true,
+                label = { Text("Name") },
+                shape = RoundedCornerShape(13.dp),
+                modifier = Modifier.fillMaxWidth().testTag("settings-name"),
+            )
+            ChoiceField(
+                "Display currency",
+                currency,
+                currencies,
+                { currency = it },
+                enabled = !busy,
+            )
+            Text(
+                "Changing currency changes the symbol only. Amounts are not converted.",
+                fontSize = 11.sp,
+                lineHeight = 18.sp,
+                color = Muted,
+            )
+            PrimaryButton(
+                "Save preferences",
+                { onSave(name.trim().ifEmpty { "Friend" }, currency) },
+                enabled = !busy,
+            )
         }
-        Panel {
-            Column(Modifier.padding(21.dp)) {
-                Text("Your data, your control.", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Stored privately on this device. Backup files contain readable financial records; choose a private location. Keep a backup before uninstalling.",
-                    fontSize = 12.sp,
-                    lineHeight = 21.sp,
-                    color = Muted,
+        HorizontalDivider(thickness = .5.dp)
+        Column {
+            Text("Your data, your control.", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Stored privately on this device. Backups contain readable financial records; keep them somewhere private.",
+                fontSize = 12.sp,
+                lineHeight = 21.sp,
+                color = Muted,
+            )
+            Spacer(Modifier.height(14.dp))
+            listOf(
+                    Triple(Icons.Outlined.FileDownload, "Export backup", onExport),
+                    Triple(Icons.Outlined.FileUpload, "Restore backup", onImport),
+                    Triple(Icons.Outlined.DeleteOutline, "Reset all data", onReset),
                 )
-                Spacer(Modifier.height(13.dp))
-                listOf(
-                        Triple(Icons.Outlined.FileDownload, "Export backup", onExport),
-                        Triple(Icons.Outlined.FileUpload, "Restore backup", onImport),
-                        Triple(Icons.Outlined.DeleteOutline, "Reset all data", onReset),
-                    )
-                    .forEach { (icon, label, action) ->
-                        HorizontalDivider(color = Line)
-                        TextButton(
-                            action,
-                            Modifier.fillMaxWidth().heightIn(min = 55.dp),
-                            contentPadding = PaddingValues(0.dp),
-                        ) {
-                            Icon(
-                                icon,
-                                null,
-                                Modifier.size(20.dp),
-                                tint = if (label.startsWith("Reset")) Orange else Lime,
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                label,
-                                Modifier.weight(1f),
-                                textAlign = TextAlign.Start,
-                                color = if (label.startsWith("Reset")) Orange else Color.White,
-                                fontSize = 12.sp,
-                            )
-                            Icon(
-                                Icons.Outlined.ChevronRight,
-                                null,
-                                Modifier.size(17.dp),
-                                tint = Muted,
-                            )
-                        }
+                .forEach { (icon, label, action) ->
+                    TextButton(
+                        action,
+                        Modifier.fillMaxWidth().heightIn(min = 58.dp),
+                        enabled = !busy,
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Icon(
+                            icon,
+                            null,
+                            Modifier.size(20.dp),
+                            tint = if (label.startsWith("Reset")) Orange else Lime,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            label,
+                            Modifier.weight(1f),
+                            textAlign = TextAlign.Start,
+                            color = if (label.startsWith("Reset")) Orange else Color.White,
+                            fontSize = 13.sp,
+                        )
+                        Icon(Icons.Outlined.ChevronRight, null, Modifier.size(17.dp), Muted)
                     }
-            }
+                    HorizontalDivider(thickness = .5.dp)
+                }
         }
         Text(
-            "Verdant Budget · 2.1.0\nRoom for what matters.",
+            "Verdant Budget · 2.2.0\nRoom for what matters.",
             fontSize = 10.sp,
             lineHeight = 22.sp,
             color = Muted,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().testTag("settings-footer").padding(vertical = 12.dp),
         )
     }
 }

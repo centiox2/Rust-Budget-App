@@ -1,5 +1,6 @@
 package com.centiox.verdant
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -193,8 +195,6 @@ fun MonthPicker(month: String, onChange: (String) -> Unit) {
             ) {
                 Text("Current", fontSize = 11.sp)
             }
-        else if (LocalDensity.current.fontScale < 1.2f)
-            Text("Monthly overview", fontSize = 9.sp, color = Muted)
     }
 }
 
@@ -257,8 +257,16 @@ fun EntryRows(
 
 @Composable
 fun Progress(value: Float, modifier: Modifier = Modifier, color: Color = Lime) {
+    var entered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { entered = true }
+    val progress by
+        animateFloatAsState(
+            if (entered) value.coerceIn(0f, 1f) else 0f,
+            tween(550),
+            label = "Budget progress",
+        )
     Box(modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color(0xFF30352B))) {
-        Box(Modifier.fillMaxWidth(value.coerceIn(0f, 1f)).fillMaxHeight().background(color))
+        Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(color))
     }
 }
 
@@ -305,6 +313,11 @@ fun SpendingLine(
     color: Color = Color(0xFF369B40),
     grid: Boolean = true,
 ) {
+    val reveal = remember { Animatable(0f) }
+    LaunchedEffect(values) {
+        reveal.snapTo(0f)
+        reveal.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
+    }
     Canvas(modifier) {
         val max = values.maxOrNull()?.coerceAtLeast(1L) ?: 1L
         val baseline = size.height * .9f
@@ -352,8 +365,13 @@ fun SpendingLine(
                 lineTo(0f, size.height)
                 close()
             }
-        drawPath(fill, Brush.verticalGradient(listOf(color.copy(alpha = .2f), Color.Transparent)))
-        drawPath(path, color, style = Stroke(width = 1.5.dp.toPx()))
+        clipRect(right = size.width * reveal.value) {
+            drawPath(
+                fill,
+                Brush.verticalGradient(listOf(color.copy(alpha = .2f), Color.Transparent)),
+            )
+            drawPath(path, color, style = Stroke(width = 1.5.dp.toPx()))
+        }
     }
 }
 

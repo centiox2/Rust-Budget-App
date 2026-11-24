@@ -89,7 +89,7 @@ fun App(
             } finally {
                 busy = false
             }
-            snackbar.showSnackbar(result)
+            if (result.isNotEmpty()) snackbar.showSnackbar(result)
         }
     }
     backHandler(
@@ -163,8 +163,7 @@ fun App(
         rootModifier.fillMaxSize().background(Color.Black),
         contentAlignment = Alignment.TopCenter,
     ) {
-        if (ready && data.onboarded && page == Page.Home)
-            Box(Modifier.matchParentSize().background(HomeBackground))
+        if (ready && data.onboarded) Box(Modifier.matchParentSize().background(HomeBackground))
         else
             LiquidBackground(
                 data.backgroundColor,
@@ -239,15 +238,18 @@ fun App(
                         AnimatedContent(
                             page,
                             transitionSpec = {
-                                fadeIn(tween(180)) togetherWith fadeOut(tween(100))
+                                val direction =
+                                    if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                                (fadeIn(tween(220)) +
+                                    slideInHorizontally(tween(220)) { direction * 16 }) togetherWith
+                                    (fadeOut(tween(140)) +
+                                        slideOutHorizontally(tween(180)) { -direction * 10 })
                             },
                             label = "page",
                         ) { selected ->
                             Column(Modifier.fillMaxSize()) {
                                 if (selected != Page.Home) {
-                                    AppHeader(selected, data, ::go)
-                                    if (selected != Page.Settings)
-                                        MonthPicker(month, { month = it })
+                                    PageHeader(selected, data, month, ::go, { month = it })
                                 }
                                 Box(Modifier.weight(1f)) {
                                     when (selected) {
@@ -333,7 +335,7 @@ fun App(
                                                 ::importBackup,
                                                 { confirm = "reset" },
                                                 { hex, moving ->
-                                                    action("Appearance saved.") {
+                                                    action("") {
                                                         repository.update {
                                                             it.copy(
                                                                 backgroundColor = hex,

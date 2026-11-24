@@ -57,9 +57,9 @@ private fun meshTint(color: Color, strength: Float): Color {
 
 /**
  * Drifting palette mesh inspired by Music App's GlowMesh/LiquidArtwork. No image decoding, network,
- * full-screen blur, or Android-version-specific shaders. A smaller offscreen canvas is scaled up
- * to fill the window. InfiniteTransition respects Compose's motion scale
- * and pauses with the Android window frame clock.
+ * full-screen blur, or Android-version-specific shaders. A smaller offscreen canvas is scaled up to
+ * fill the window. InfiniteTransition respects Compose's motion scale and pauses with the Android
+ * window frame clock.
  */
 @Composable
 fun LiquidBackground(hex: String, moving: Boolean, modifier: Modifier = Modifier) {
@@ -142,74 +142,62 @@ fun LiquidBackground(hex: String, moving: Boolean, modifier: Modifier = Modifier
 @Composable
 fun AppearancePanel(data: BudgetData, busy: Boolean, onChange: (String, Boolean) -> Unit) {
     var custom by rememberSaveable { mutableStateOf(false) }
-    Panel {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Make it yours.", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Liquid background", fontSize = 12.sp, color = Muted)
-            Box(Modifier.fillMaxWidth().height(100.dp).clip(RoundedCornerShape(18.dp))) {
-                LiquidBackground(
-                    data.backgroundColor,
-                    data.animateBackground,
-                    Modifier.matchParentSize(),
-                )
-                Text(
-                    "A little color. A little calm.",
-                    Modifier.align(Alignment.Center),
-                    fontSize = 12.sp,
-                )
-            }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-                maxItemsInEachRow = 2,
-            ) {
-                backgroundPresets.forEach { (name, hex) ->
-                    FilterChip(
-                        selected = hex.equals(data.backgroundColor, true),
-                        onClick = { onChange(hex, data.animateBackground) },
-                        enabled = !busy,
-                        label = { Text(name, fontSize = 11.sp) },
-                        leadingIcon = {
-                            Box(
-                                Modifier.size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(backgroundColor(hex))
-                            )
-                        },
-                        modifier =
-                            Modifier.weight(1f).semantics {
-                                contentDescription = "$name background"
-                            },
-                    )
-                }
-            }
-            OutlinedButton({ custom = true }, Modifier.fillMaxWidth(), enabled = !busy) {
-                Icon(Icons.Outlined.Palette, null, Modifier.size(18.dp))
-                Spacer(Modifier.width(9.dp))
-                Text("Custom color", fontSize = 12.sp)
-                Spacer(Modifier.weight(1f))
-                Text(data.backgroundColor.uppercase(), fontSize = 10.sp, color = Muted)
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Animate background", fontSize = 13.sp)
-                    Text("Turn off for less motion.", fontSize = 11.sp, color = Muted)
-                }
-                Switch(
-                    data.animateBackground,
-                    { onChange(data.backgroundColor, it) },
-                    enabled = !busy,
-                    modifier =
-                        Modifier.testTag("background-motion").semantics {
-                            contentDescription = "Animate background"
-                        },
-                )
-            }
-            if (data.backgroundColor != DEFAULT_BACKGROUND || !data.animateBackground)
-                TextButton({ onChange(DEFAULT_BACKGROUND, true) }, enabled = !busy) {
-                    Text("Reset appearance", fontSize = 12.sp)
-                }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Make it yours.", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        Text("Liquid background", fontSize = 12.sp, color = Muted)
+        Box(Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(18.dp))) {
+            LiquidBackground(
+                data.backgroundColor,
+                data.animateBackground,
+                Modifier.matchParentSize(),
+            )
+            Text("Balance header preview", Modifier.align(Alignment.Center), fontSize = 12.sp)
         }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            backgroundPresets.forEach { (name, hex) ->
+                FilterChip(
+                    selected = hex.equals(data.backgroundColor, true),
+                    onClick = { onChange(hex, data.animateBackground) },
+                    enabled = !busy,
+                    label = { Text(name, fontSize = 11.sp) },
+                    leadingIcon = {
+                        Box(Modifier.size(14.dp).clip(CircleShape).background(backgroundColor(hex)))
+                    },
+                    modifier =
+                        Modifier.weight(1f).semantics { contentDescription = "$name background" },
+                )
+            }
+        }
+        OutlinedButton({ custom = true }, Modifier.fillMaxWidth(), enabled = !busy) {
+            Icon(Icons.Outlined.Palette, null, Modifier.size(18.dp))
+            Spacer(Modifier.width(9.dp))
+            Text("Custom color", fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(data.backgroundColor.uppercase(), fontSize = 10.sp, color = Muted)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Animate background", fontSize = 13.sp)
+                Text("Turn off for less motion.", fontSize = 11.sp, color = Muted)
+            }
+            Switch(
+                data.animateBackground,
+                { onChange(data.backgroundColor, it) },
+                enabled = !busy,
+                modifier =
+                    Modifier.testTag("background-motion").semantics {
+                        contentDescription = "Animate background"
+                    },
+            )
+        }
+        if (data.backgroundColor != DEFAULT_BACKGROUND || !data.animateBackground)
+            TextButton({ onChange(DEFAULT_BACKGROUND, true) }, enabled = !busy) {
+                Text("Reset appearance", fontSize = 12.sp)
+            }
     }
     if (custom)
         BackgroundColorPicker(

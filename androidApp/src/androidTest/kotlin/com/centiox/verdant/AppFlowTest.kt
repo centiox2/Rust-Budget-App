@@ -59,6 +59,67 @@ class AppFlowTest {
     }
 
     @Test
+    fun scrollingAndProfileKeyboardKeepContentReachable() {
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag("start").performScrollTo().performClick()
+        compose.onNodeWithTag("profile-name").performTextInput("Scroll owner")
+        compose.onNodeWithTag("sample-data").performClick()
+        compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
+        }
+        fun assertAboveNavigation(node: SemanticsNodeInteraction) {
+            node.assertIsDisplayed()
+            Assert.assertTrue(
+                node.fetchSemanticsNode().boundsInRoot.bottom <=
+                    compose
+                        .onNodeWithContentDescription("Home")
+                        .fetchSemanticsNode()
+                        .boundsInRoot
+                        .top
+            )
+        }
+        compose.onNodeWithContentDescription("Transactions").performClick()
+        compose.onNodeWithTag("transaction-list").performTouchInput { swipeUp() }
+        compose.onNodeWithTag("transaction-list").performScrollToNode(hasText("Monthly salary"))
+        assertAboveNavigation(compose.onNodeWithText("Monthly salary"))
+        screenshot("android-scroll-activity.png")
+        compose.onNodeWithContentDescription("Budgets").performClick()
+        compose.onNodeWithTag("budgets-scroll").performTouchInput { swipeUp() }
+        compose.onNodeWithText("Utilities").performScrollTo()
+        assertAboveNavigation(compose.onNodeWithText("Utilities"))
+        screenshot("android-scroll-budgets.png")
+        compose.onNodeWithContentDescription("Analytics").performClick()
+        compose.onNodeWithTag("analytics-scroll").performTouchInput { swipeUp() }
+        compose.onNodeWithText("Internet bill").performScrollTo()
+        assertAboveNavigation(compose.onNodeWithText("Internet bill"))
+        screenshot("android-scroll-insights.png")
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithTag("settings-scroll").performTouchInput { swipeUp() }
+        compose.onNodeWithTag("settings-footer").performScrollTo()
+        assertAboveNavigation(compose.onNodeWithTag("settings-footer"))
+        screenshot("android-scroll-settings.png")
+        compose
+            .onNodeWithTag("settings-name")
+            .performScrollTo()
+            .performTextReplacement("Updated profile")
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
+        compose.onNodeWithText("Save preferences").performScrollTo().performClick()
+        compose.onNodeWithText("Make it yours.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Home").performClick()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithText("Updated profile").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.activityRule.scenario.recreate()
+        compose.waitUntil(15000) {
+            compose.onAllNodesWithText("Updated profile").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
     fun appearanceSurvivesActivityRecreation() {
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("start").fetchSemanticsNodes().isNotEmpty()
