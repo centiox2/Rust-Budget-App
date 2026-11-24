@@ -66,6 +66,9 @@ class AppFlowTest {
         compose.onNodeWithTag("start").performScrollTo().performClick()
         compose.onNodeWithTag("profile-name").performTextInput("Scroll owner")
         compose.onNodeWithTag("sample-data").performClick()
+        // Let Android finish the IME layout change before targeting the setup button.
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
@@ -126,6 +129,9 @@ class AppFlowTest {
         }
         compose.onNodeWithTag("start").performScrollTo().performClick()
         compose.onNodeWithTag("profile-name").performTextInput("Appearance owner")
+        // Let Android finish the IME layout change before targeting the setup button.
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()
@@ -169,6 +175,9 @@ class AppFlowTest {
         compose.onNodeWithTag("start").performScrollTo().performClick()
         compose.onNodeWithTag("profile-name").performTextInput("Alex Morgan")
         compose.onNodeWithTag("sample-data").performClick()
+        // Let Android finish the IME layout change before targeting the setup button.
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()

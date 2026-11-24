@@ -66,6 +66,9 @@ class BackupFlowTest {
         compose.onNodeWithTag("start").performScrollTo().performClick()
         compose.onNodeWithTag("profile-name").performTextInput("Backup owner")
         compose.onNodeWithTag("sample-data").performClick()
+        // Let Android finish the IME layout change before targeting the setup button.
+        Espresso.closeSoftKeyboard()
+        compose.waitForIdle()
         compose.onNodeWithTag("finish-setup").performScrollTo().performClick()
         compose.waitUntil(15000) {
             compose.onAllNodesWithTag("total-balance").fetchSemanticsNodes().isNotEmpty()

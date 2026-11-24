@@ -43,8 +43,9 @@ class ReleaseFlowTest {
         // Scope navigation to the app: Android 8 also exposes its system Home button as "Home".
         // Dialog teardown and navigation can occupy adjacent frames on API 26.
         // These navigation targets are idempotent; verify the destination, not just idle events.
+        val appSelector = selector.pkg(app)
         repeat(3) {
-            click(selector.pkg(app))
+            click(appSelector)
             if (device.wait(Until.hasObject(destination), 3_000)) return
         }
         error("Navigation did not reach $destination")
